@@ -1,0 +1,69 @@
+@title bottlenape
+@doc
+
+[![Build Status](https://travis-ci.org/g-andrade/bottlenape.png?branch=master)](https://travis-ci.org/g-andrade/bottlenape)
+[![Hex pm](http://img.shields.io/hexpm/v/bottlenape.svg?style=flat)](https://hex.pm/packages/bottlenape)
+
+== bottlenape - Rate limited event sampler ==
+
+=== Description ===
+
+`bottlenape' determines the instantaneous[1] sampling rate of generic events, given particular constraints on rate limiting.
+
+It's destined to situations where it's desirable to sample events but only after they become frequent enough
+(e.g. reporting metrics.)
+
+[1]: The system takes a few hundred milliseconds to react to sudden changes in the rate of an event, e.g. during bursts.
+
+=== Example Flow ===
+
+<pre lang="erlang">
+{ok, _Pid} = bottlenape:start_link(metrics_reporting),
+{ok, 1.0} = bottlenape:hit(metrics_reporting, http_request),
+{ok, 1.0} = bottlenape:hit(metrics_reporting, http_request),
+% ... rate of HTTP requests keeps increasing ...
+{ok, 0.7} = bottlenape:hit(metrics_reporting, http_request),
+{ok, 0.7} = bottlenape:hit(metrics_reporting, http_request),
+drop = bottlenape:hit(metrics_reporting, http_request),
+{ok, 0.55} = bottlenape:hit(metrics_reporting, http_request),
+drop = bottlenape:hit(metrics_reporting, http_request),
+drop = bottlenape:hit(metrics_reporting, http_request),
+% ... rate of HTTP requests decreases ...
+{ok, 0.8} = bottlenape:hit(metrics_reporting, http_request),
+{ok, 0.8} = bottlenape:hit(metrics_reporting, http_request),
+drop = bottlenape:hit(metrics_reporting, http_request),
+{ok, 0.8} = bottlenape:hit(metrics_reporting, http_request),
+{ok, 1.0} = bottlenape:hit(metrics_reporting, http_request).
+</pre>
+
+=== Installation (Erlang) ===
+
+Add `bottlenape' to your list of dependencies in `rebar.config':
+
+<pre lang="erlang">
+{deps,
+ [{bottlenape, "1.0.0"}
+ ]}.
+</pre>
+And then run `rebar3 compile'
+
+=== Installation (Elixir) ===
+
+Add `bottlenape' to your list of dependencies in `mix.exs':
+
+<pre lang="elixir">
+def deps do
+[
+  {:bottlenape, "1.0.0"}
+]
+end
+</pre>
+And then run `mix deps.get'
+
+=== Requirements ===
+
+The library has been tested on Erlang/OTP versions 19.{0..3}, and 20.{0..1}. The supported build tool is `rebar3'.
+
+=== More info ===
+
+See API reference indexed below.

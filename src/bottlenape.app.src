@@ -1,0 +1,15 @@
+{application, bottlenape,
+ [{description, "Rate limited event sampler"},
+  {vsn, git},
+  {registered, []},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, ["Guilherme Andrade"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/g-andrade/bottlenape"}]}
+ ]}.
