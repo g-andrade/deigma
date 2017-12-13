@@ -49,6 +49,8 @@ child_spec(Context) -&gt; <a href="#type-child_spec">child_spec</a>(Context)
 Returns a child specification for instantiating
 a particular `Context` under a supervisor.
 
+__See also:__ [start/1](#start-1), [start/2](#start-2).
+
 <a name="hit-2"></a>
 
 ### hit/2 ###
@@ -59,10 +61,11 @@ hit(Context, Id) -&gt; {ok, SampleRate} | drop
 
 <ul class="definitions"><li><code>Context = atom()</code></li><li><code>Id = term()</code></li><li><code>SampleRate = float()</code></li></ul>
 
-returns: `{ok, SampleRate}` if the event was accepted with `0 < SampleRate =< 1` sampling,
-or `drop` if the event was rejected.
-
 Reports one more hit for event `Id` within context `Context`.
+Returns `{ok, SampleRate}` if the event was accepted with `0 < SampleRate =< 1` sampling,
+or `drop` if the event was rejected.
+`Context` must refer to a previously created context using `child_spec/1`,
+`start/1` or `start_link/1`.
 
 <a name="start-1"></a>
 
@@ -78,6 +81,8 @@ Creates a standalone `Context` process, that is,
 a bottlenape process that is not part of a supervision tree
 and thus has no supervisor.
 
+__See also:__ [child_spec/1](#child_spec-1), [start_link/1](#start_link-1).
+
 <a name="start_link-1"></a>
 
 ### start_link/1 ###
@@ -91,4 +96,6 @@ start_link(Context) -&gt; {ok, pid()}
 Creates a `Context` process as part of a supervision tree.
 This function is to be called, directly or indirectly, by the supervisor.
 For example, it ensures that the gen_server process is linked to the supervisor.
+
+__See also:__ [child_spec/1](#child_spec-1), [start/1](#start-1).
 

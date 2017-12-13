@@ -80,9 +80,22 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+%% @doc Returns a child specification for instantiating
+%% a particular `Context' under a supervisor.
+%% @see start/1
+%% @see start/2
+-spec child_spec(Context) -> child_spec(Context)
+        when Context :: atom().
+child_spec(Context) ->
+    #{ id => {?MODULE, Context},
+       start => {?MODULE, start_link, [Context]}
+     }.
+
 %% @doc Reports one more hit for event `Id' within context `Context'.
-%% @returns `{ok, SampleRate}' if the event was accepted with `0 < SampleRate =< 1' sampling,
+%% Returns `{ok, SampleRate}' if the event was accepted with `0 < SampleRate =< 1' sampling,
 %% or `drop' if the event was rejected.
+%% `Context' must refer to a previously created context using `child_spec/1',
+%% `start/1' or `start_link/1'.
 -spec hit(Context, Id) -> {ok, SampleRate} | drop
         when Context :: atom(),
              Id :: term(),
@@ -105,18 +118,11 @@ hit(Context, Id) ->
             end
     end.
 
-%% @doc Returns a child specification for instantiating
-%% a particular `Context' under a supervisor.
--spec child_spec(Context) -> child_spec(Context)
-        when Context :: atom().
-child_spec(Context) ->
-    #{ id => {?MODULE, Context},
-       start => {?MODULE, start_link, [Context]}
-     }.
-
 %% @doc Creates a standalone `Context' process, that is,
 %% a bottlenape process that is not part of a supervision tree
 %% and thus has no supervisor.
+%% @see child_spec/1
+%% @see start_link/1
 -spec start(Context) -> {ok, pid()}
         when Context :: atom().
 start(Context) ->
@@ -125,6 +131,8 @@ start(Context) ->
 %% @doc Creates a `Context' process as part of a supervision tree.
 %% This function is to be called, directly or indirectly, by the supervisor.
 %% For example, it ensures that the gen_server process is linked to the supervisor.
+%% @see child_spec/1
+%% @see start/1
 -spec start_link(Context) -> {ok, pid()}
         when Context :: atom().
 start_link(Context) ->
