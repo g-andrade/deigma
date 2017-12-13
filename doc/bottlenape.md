@@ -95,7 +95,7 @@ start_link(Context) -&gt; {ok, pid()}
 
 Creates a `Context` process as part of a supervision tree.
 This function is to be called, directly or indirectly, by the supervisor.
-For example, it ensures that the gen_server process is linked to the supervisor.
+For example, it ensures that the bottlenape process is linked to the supervisor.
 
 __See also:__ [child_spec/1](#child_spec-1), [start/1](#start-1).
 

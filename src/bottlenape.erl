@@ -130,7 +130,7 @@ start(Context) ->
 
 %% @doc Creates a `Context' process as part of a supervision tree.
 %% This function is to be called, directly or indirectly, by the supervisor.
-%% For example, it ensures that the gen_server process is linked to the supervisor.
+%% For example, it ensures that the bottlenape process is linked to the supervisor.
 %% @see child_spec/1
 %% @see start/1
 -spec start_link(Context) -> {ok, pid()}
