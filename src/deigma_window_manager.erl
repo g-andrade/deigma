@@ -72,15 +72,15 @@
 -spec report(term(), non_neg_integer() | infinity)
         -> {ok, {deigma:decision(), deigma:stats()}} |
            {error, term()}.
-report(EventId, MaxPerSecond) ->
-    WindowPid = find_or_create_window(EventId),
+report(Event, MaxPerSecond) ->
+    WindowPid = find_or_create_window(Event),
     case deigma_window:report(WindowPid, MaxPerSecond) of
         {ok, Result} ->
             {ok, Result};
         {error, {window_stopped, Reason}} when Reason =:= noproc;
                                                Reason =:= normal ->
             % window went away; try again
-            report(EventId, MaxPerSecond);
+            report(Event, MaxPerSecond);
         {error, Error} ->
             {error, Error}
     end.
@@ -101,8 +101,8 @@ init([]) ->
 -spec handle_call(term(), {pid(), reference()}, state())
         -> {reply, pid(), state()} |
            {stop, unexpected_call, state()}.
-handle_call({find_or_create_window, EventId}, _From, State) ->
-    handle_find_or_create_window(EventId, State);
+handle_call({find_or_create_window, Event}, _From, State) ->
+    handle_find_or_create_window(Event, State);
 handle_call(_Request, _From, State) ->
     {stop, unexpected_call, State}.
 
@@ -116,10 +116,10 @@ handle_cast(_Cast, State) ->
            {stop, unexpected_info, state()}.
 handle_info({'DOWN', Ref, process, _Pid, Reason}, State) ->
     Monitors = State#state.monitors,
-    {EventId, UpdatedMonitors} = maps:take(Ref, Monitors),
-    ets:delete(?TABLE, EventId),
+    {Event, UpdatedMonitors} = maps:take(Ref, Monitors),
+    ets:delete(?TABLE, Event),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
-    io:format("~p died due to ~p~n", [EventId, Reason]),
+    io:format("~p died due to ~p~n", [Event, Reason]),
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
     {stop, unexpected_info, State}.
@@ -136,30 +136,30 @@ code_change(_OldVsn, State, _Extra) when is_record(State, state) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-find_or_create_window(EventId) ->
-    case find_window(EventId) of
+find_or_create_window(Event) ->
+    case find_window(Event) of
         undefined ->
-            gen_server:call(?SERVER, {find_or_create_window, EventId}, infinity);
+            gen_server:call(?SERVER, {find_or_create_window, Event}, infinity);
         WindowPid ->
             WindowPid
     end.
 
-handle_find_or_create_window(EventId, State) ->
-    case find_window(EventId) of
+handle_find_or_create_window(Event, State) ->
+    case find_window(Event) of
         undefined ->
             {ok, WindowPid} = deigma_window:start(),
             WindowMonitor = monitor(process, WindowPid),
-            ets:insert(?TABLE, {EventId, WindowPid}),
+            ets:insert(?TABLE, {Event, WindowPid}),
             Monitors = State#state.monitors,
-            UpdatedMonitors = Monitors#{ WindowMonitor => EventId },
+            UpdatedMonitors = Monitors#{ WindowMonitor => Event },
             UpdatedState = State#state{ monitors = UpdatedMonitors },
             {reply, WindowPid, UpdatedState};
         WindowPid ->
             {reply, WindowPid, State}
     end.
 
-find_window(EventId) ->
-    case ets:lookup(?TABLE, EventId) of
+find_window(Event) ->
+    case ets:lookup(?TABLE, Event) of
         [{_, WindowPid}] ->
             WindowPid;
         [] ->

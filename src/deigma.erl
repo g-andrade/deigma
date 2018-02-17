@@ -44,20 +44,20 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(EventId) -> {ok, {Decision, Stats}} | {error, Error}
-        when EventId :: term(),
+-spec report(Event) -> {ok, {Decision, Stats}} | {error, Error}
+        when Event :: term(),
              Decision :: deigma_window:decision(),
              Stats :: deigma_window:stats(),
              Error :: {window_stopped, term()}.
-report(EventId) ->
-    report(EventId, []).
+report(Event) ->
+    report(Event, []).
 
--spec report(EventId, [Option]) -> {ok, {Decision, Stats}} | {error, Error}
-        when EventId :: term(),
+-spec report(Event, [Option]) -> {ok, {Decision, Stats}} | {error, Error}
+        when Event :: term(),
              Option :: {max_per_second, non_neg_integer() | infinity},
              Decision :: deigma_window:decision(),
              Stats :: deigma_window:stats(),
              Error :: {window_stopped, term()}.
-report(EventId, Options) ->
+report(Event, Options) ->
     MaxPerSecond = proplists:get_value(max_per_second, Options, ?DEFAULT_MAX_PER_SECOND),
-    deigma_window_manager:report(EventId, MaxPerSecond).
+    deigma_window_manager:report(Event, MaxPerSecond).
