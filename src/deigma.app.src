@@ -1,7 +1,8 @@
-{application, bottlenape,
+{application, deigma,
  [{description, "Rate limited event sampler"},
   {vsn, git},
   {registered, []},
+  {mod, {deigma_app, []}},
   {applications,
    [kernel,
     stdlib
@@ -11,5 +12,5 @@
 
   {maintainers, ["Guilherme Andrade"]},
   {licenses, ["MIT"]},
-  {links, [{"Github", "https://github.com/g-andrade/bottlenape"}]}
+  {links, [{"Github", "https://github.com/g-andrade/deigma"}]}
  ]}.
