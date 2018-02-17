@@ -114,12 +114,11 @@ handle_cast(_Cast, State) ->
 -spec handle_info(term(), state())
         -> {noreply, state()} |
            {stop, unexpected_info, state()}.
-handle_info({'DOWN', Ref, process, _Pid, Reason}, State) ->
+handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
     {Event, UpdatedMonitors} = maps:take(Ref, Monitors),
     ets:delete(?TABLE, Event),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
-    io:format("~p died due to ~p~n", [Event, Reason]),
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
     {stop, unexpected_info, State}.
