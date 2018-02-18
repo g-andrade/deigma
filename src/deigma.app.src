@@ -1,5 +1,5 @@
 {application, deigma,
- [{description, "Rate limited event sampler"},
+ [{description, "Sampled event metrics"},
   {vsn, git},
   {registered, []},
   {mod, {deigma_app, []}},
