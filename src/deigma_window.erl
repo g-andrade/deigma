@@ -123,8 +123,8 @@ init([Parent]) ->
     proc_lib:init_ack(Parent, {ok, self()}),
     State = #state{},
     erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
-    fprof:apply(fun loop/3, [Parent, Debug, State]).
-    %loop(Parent, Debug, State).
+    %fprof:apply(fun loop/3, [Parent, Debug, State]).
+    loop(Parent, Debug, State).
 
 -spec system_code_change(state(), module(), term(), term()) -> {ok, state()}.
 %% @private
