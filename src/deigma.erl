@@ -38,26 +38,24 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(DEFAULT_MAX_PER_SECOND, infinity).
+-define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).
+-define(is_limit(V), (?is_non_neg_integer((V)) orelse ((V) =:= infinity))).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(Event) -> {ok, {Decision, Stats}} | {error, Error}
-        when Event :: term(),
-             Decision :: deigma_window:decision(),
-             Stats :: deigma_window:stats(),
-             Error :: {window_stopped, term()}.
-report(Event) ->
-    report(Event, []).
+-spec report(Metric) -> {Decision, SampleRate}
+        when Metric :: term(),
+             Decision :: accept | drop,
+             SampleRate :: float().
+report(Metric) ->
+    report(Metric, infinity).
 
--spec report(Event, [Option]) -> {ok, {Decision, Stats}} | {error, Error}
-        when Event :: term(),
-             Option :: {max_per_second, non_neg_integer() | infinity},
-             Decision :: deigma_window:decision(),
-             Stats :: deigma_window:stats(),
-             Error :: {window_stopped, term()}.
-report(Event, Options) ->
-    MaxPerSecond = proplists:get_value(max_per_second, Options, ?DEFAULT_MAX_PER_SECOND),
-    deigma_window_manager:report(Event, MaxPerSecond).
+-spec report(Metric, Limit) -> {Decision, SampleRate}
+        when Metric :: term(),
+             Limit :: non_neg_integer() | infinity,
+             Decision :: accept | drop,
+             SampleRate :: float().
+report(Metric, Limit) when ?is_limit(Limit) ->
+    deigma_window_manager:report(Metric, Limit).

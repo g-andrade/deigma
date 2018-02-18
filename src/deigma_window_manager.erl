@@ -70,19 +70,15 @@
 %% ------------------------------------------------------------------
 
 -spec report(term(), non_neg_integer() | infinity)
-        -> {ok, {deigma:decision(), deigma:stats()}} |
-           {error, term()}.
-report(Event, MaxPerSecond) ->
-    WindowPid = find_or_create_window(Event),
-    case deigma_window:report(WindowPid, MaxPerSecond) of
-        {ok, Result} ->
-            {ok, Result};
-        {error, {window_stopped, Reason}} when Reason =:= noproc;
-                                               Reason =:= normal ->
+        -> {accept | drop, float()}.
+report(Metric, Limit) ->
+    WindowPid = find_or_create_window(Metric),
+    case deigma_window:report(WindowPid, Limit) of
+        window_stopped ->
             % window went away; try again
-            report(Event, MaxPerSecond);
-        {error, Error} ->
-            {error, Error}
+            report(Metric, Limit);
+        Result ->
+            Result
     end.
 
 -spec start_link() -> {ok, pid()}.
@@ -101,8 +97,8 @@ init([]) ->
 -spec handle_call(term(), {pid(), reference()}, state())
         -> {reply, pid(), state()} |
            {stop, unexpected_call, state()}.
-handle_call({find_or_create_window, Event}, _From, State) ->
-    handle_find_or_create_window(Event, State);
+handle_call({find_or_create_window, Metric}, _From, State) ->
+    handle_find_or_create_window(Metric, State);
 handle_call(_Request, _From, State) ->
     {stop, unexpected_call, State}.
 
@@ -116,8 +112,8 @@ handle_cast(_Cast, State) ->
            {stop, unexpected_info, state()}.
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
-    {Event, UpdatedMonitors} = maps:take(Ref, Monitors),
-    ets:delete(?TABLE, Event),
+    {Metric, UpdatedMonitors} = maps_take(Ref, Monitors),
+    ets:delete(?TABLE, Metric),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
@@ -135,32 +131,45 @@ code_change(_OldVsn, State, _Extra) when is_record(State, state) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-find_or_create_window(Event) ->
-    case find_window(Event) of
+find_or_create_window(Metric) ->
+    case find_window(Metric) of
         undefined ->
-            gen_server:call(?SERVER, {find_or_create_window, Event}, infinity);
+            gen_server:call(?SERVER, {find_or_create_window, Metric}, infinity);
         WindowPid ->
             WindowPid
     end.
 
-handle_find_or_create_window(Event, State) ->
-    case find_window(Event) of
+handle_find_or_create_window(Metric, State) ->
+    case find_window(Metric) of
         undefined ->
             {ok, WindowPid} = deigma_window:start(),
             WindowMonitor = monitor(process, WindowPid),
-            ets:insert(?TABLE, {Event, WindowPid}),
+            ets:insert(?TABLE, {Metric, WindowPid}),
             Monitors = State#state.monitors,
-            UpdatedMonitors = Monitors#{ WindowMonitor => Event },
+            UpdatedMonitors = maps:put(WindowMonitor, Metric, Monitors),
             UpdatedState = State#state{ monitors = UpdatedMonitors },
             {reply, WindowPid, UpdatedState};
         WindowPid ->
             {reply, WindowPid, State}
     end.
 
-find_window(Event) ->
-    case ets:lookup(?TABLE, Event) of
+find_window(Metric) ->
+    case ets:lookup(?TABLE, Metric) of
         [{_, WindowPid}] ->
             WindowPid;
         [] ->
             undefined
     end.
+
+-ifdef(POST_OTP_18).
+maps_take(Key, Map) ->
+    maps:take(Key, Map).
+-else.
+maps_take(Key, Map) ->
+    case maps:find(Key, Map) of
+        {ok, Value} ->
+            {Value, maps:remove(Key, Map)};
+        error ->
+            error
+    end.
+-endif.

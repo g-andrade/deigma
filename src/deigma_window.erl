@@ -59,7 +59,7 @@
 %% Macro Definitions
 %%-------------------------------------------------------------------
 
--define(INACTIVITY_TIMEOUT, (erlang:convert_time_unit(5, second, native))).
+-define(INACTIVITY_TIMEOUT, (convert_time_unit(5, seconds, native))).
 -define(INACTIVITY_CHECK_PERIOD, (timer:seconds(2))).
 
 %%-------------------------------------------------------------------
@@ -70,22 +70,14 @@
           window = queue:new() :: queue:queue(event()),
           window_size = 0 :: non_neg_integer(),
           sample_size = 0 :: non_neg_integer(),
-          time_span = erlang:convert_time_unit(1, second, native) :: timestamp(),
-          last_active = erlang:monotonic_time() :: timestamp()
+          time_span = convert_time_unit(1, seconds, native) :: timestamp(),
+          last_active = monotonic_time() :: timestamp()
          }).
 -type state() :: state().
 
 -type event() :: {timestamp(), decision()}.
 -type timestamp() :: integer().
-
--type decision() :: sampled | dropped.
--export_type([decision/0]).
-
--type stats() ::
-        #{ total_count => non_neg_integer(),
-           sampled_count => non_neg_integer()
-         }.
--export_type([stats/0]).
+-type decision() :: accept | drop.
 
 %%-------------------------------------------------------------------
 %% API Function Definitions
@@ -97,20 +89,21 @@ start() ->
     deigma_window_sup:start_child([]).
 
 -spec report(pid(), non_neg_integer() | infinity) ->
-        {ok, {decision(), stats()}} |
-        {error, {window_stopped, term()}}.
+        {accept | drop, float()} | window_stopped.
 %% @private
-report(WindowPid, MaxPerSecond) ->
+report(WindowPid, Limit) ->
     WindowMonitor = monitor(process, WindowPid),
-    WindowPid ! {report, self(), MaxPerSecond},
+    WindowPid ! {report, self(), Limit},
     receive
         {WindowPid, WindowSize, SampleSize, Decision} ->
             demonitor(WindowMonitor, [flush]),
-            {ok, {Decision, #{ total_count => WindowSize,
-                                   sampled_count => SampleSize
-                                 }}};
+            {Decision, SampleSize / WindowSize};
         {'DOWN', WindowMonitor, process, _Pid, Reason} ->
-            {error, {window_stopped, Reason}}
+            case Reason of
+                noproc -> window_stopped;
+                normal -> window_stopped;
+                Other -> error({deigma_window_crashed, Other})
+            end
     end.
 
 -spec start_link() -> {ok, pid()}.
@@ -126,10 +119,12 @@ start_link() ->
 %% @private
 init([Parent]) ->
     Debug = sys:debug_options([]),
+    rand_seed(),
     proc_lib:init_ack(Parent, {ok, self()}),
     State = #state{},
     erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
-    fprof:apply(fun loop/3, [Parent, Debug, State]).
+    %fprof:apply(fun loop/3, [Parent, Debug, State]).
+    loop(Parent, Debug, State).
 
 -spec system_code_change(state(), module(), term(), term()) -> {ok, state()}.
 %% @private
@@ -161,14 +156,14 @@ loop(Parent, Debug, State) ->
             handle_message(Msg, Parent, Debug, State)
     end.
 
-handle_message({report, From, MaxPerSecond}, Parent, Debug, State) ->
-    handle_report(From, MaxPerSecond, Parent, Debug, State);
+handle_message({report, From, Limit}, Parent, Debug, State) ->
+    handle_report(From, Limit, Parent, Debug, State);
 handle_message(check_inactivity, Parent, Debug, State) ->
     check_inactivity(Parent, Debug, State);
 handle_message({system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State).
 
-handle_report(From, MaxPerSecond, Parent, Debug, State) ->
+handle_report(From, Limit, Parent, Debug, State) ->
     Window = State#state.window,
     Timespan = State#state.time_span,
     WindowSize = State#state.window_size,
@@ -177,8 +172,8 @@ handle_report(From, MaxPerSecond, Parent, Debug, State) ->
         purge_events(Timespan, Window, WindowSize, SampleSize),
 
     {UpdatedWindowSize, UpdatedSampleSize, Decision} =
-        handle_sampling(PurgedWindowSize, PurgedSampleSize, MaxPerSecond),
-    Now = erlang:monotonic_time(),
+        handle_sampling(PurgedWindowSize, PurgedSampleSize, Limit),
+    Now = monotonic_time(),
     UpdatedWindow = queue:in({Now, Decision}, PurgedWindow),
     From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision},
     UpdatedState =
@@ -192,12 +187,12 @@ handle_report(From, MaxPerSecond, Parent, Debug, State) ->
 purge_events(_Timespan, Window, WindowSize, SampleSize) when WindowSize =:= 0 ->
     {Window, WindowSize, SampleSize};
 purge_events(Timespan, Window, WindowSize, SampleSize) ->
-    MinTimestamp = erlang:monotonic_time() - Timespan,
-    {OldestTimestamp, OldestWasSampled} = queue:get(Window),
+    MinTimestamp = monotonic_time() - Timespan,
+    {OldestTimestamp, OldestDecision} = queue:get(Window),
     case OldestTimestamp =< MinTimestamp of
         true ->
             UpdatedWindow = queue:drop(Window),
-            case OldestWasSampled =:= sampled of
+            case OldestDecision =:= accept of
                 true ->
                     purge_events(Timespan, UpdatedWindow, WindowSize - 1, SampleSize - 1);
                 _ ->
@@ -208,7 +203,7 @@ purge_events(Timespan, Window, WindowSize, SampleSize) ->
     end.
 
 check_inactivity(Parent, Debug, State) ->
-    Now = erlang:monotonic_time(),
+    Now = monotonic_time(),
     case Now - State#state.last_active >= ?INACTIVITY_TIMEOUT of
         true ->
             exit(normal);
@@ -217,16 +212,44 @@ check_inactivity(Parent, Debug, State) ->
             loop(Parent, Debug, State)
     end.
 
-handle_sampling(WindowSize, SampleSize, MaxPerSecond) when SampleSize >= MaxPerSecond ->
-    {WindowSize + 1, SampleSize, dropped};
-handle_sampling(WindowSize, SampleSize, _MaxPerSecond) when SampleSize =:= WindowSize ->
-    {WindowSize + 1, SampleSize + 1, sampled};
-handle_sampling(WindowSize, SampleSize, _MaxPerSecond) ->
+handle_sampling(WindowSize, SampleSize, Limit) when SampleSize >= Limit ->
+    {WindowSize + 1, SampleSize, drop};
+handle_sampling(WindowSize, SampleSize, _Limit) when SampleSize =:= WindowSize ->
+    {WindowSize + 1, SampleSize + 1, accept};
+handle_sampling(WindowSize, SampleSize, _Limit) ->
     NewWindowSize = WindowSize + 1,
     TentativeNewSampleSize = SampleSize + 1,
-    case rand:uniform(NewWindowSize) =< TentativeNewSampleSize of
+    case rand_uniform(NewWindowSize) =< TentativeNewSampleSize of
         true ->
-            {NewWindowSize, TentativeNewSampleSize, sampled};
+            {NewWindowSize, TentativeNewSampleSize, accept};
         false ->
-            {NewWindowSize, SampleSize, dropped}
+            {NewWindowSize, SampleSize, drop}
     end.
+
+-ifdef(POST_OTP_17).
+monotonic_time() ->
+    erlang:monotonic_time().
+
+convert_time_unit(Value, FromUnit, ToUnit) ->
+    erlang:convert_time_unit(Value, FromUnit, ToUnit).
+
+rand_seed() ->
+    ok.
+
+rand_uniform(N) ->
+    rand:uniform(N).
+-else.
+monotonic_time() ->
+    {MegaSecs, Secs, MicroSecs} = erlang:now(),
+    (((MegaSecs * 1000000) + Secs) * 1000000) + MicroSecs.
+
+convert_time_unit(Value, seconds, native) ->
+    Value * 1000000.
+
+rand_seed() ->
+    _ = random:seed(erlang:now()),
+    ok.
+
+rand_uniform(N) ->
+    random:uniform(N).
+-endif.

@@ -50,7 +50,6 @@ README.md: doc
 	pandoc --from html --to gfm doc/overview-summary.html -o README.md
 	@tail -n +11 <"README.md"   >"README.md_"
 	@head -n -12 <"README.md_"  >"README.md"
-	@tail -n  2  <"README.md_" >>"README.md"
 	@rm "README.md_"
 
 publish:
