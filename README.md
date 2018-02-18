@@ -17,6 +17,7 @@ of what's happening in the system.
 ``` erlang
 Metric = inbound_http_request,
 MaxPerSecond = 100,
+
 case deigma:report(Metric, MaxPerSecond) of
     {accept, SampleRate} ->
         % your_metrics:report(inbound_http_request, SampleRate);
@@ -62,4 +63,3 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
------

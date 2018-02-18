@@ -17,6 +17,7 @@ The sampling rate is continuously adjusted over a one second window so that the 
 <pre lang="erlang" class="erlang">
 Metric = inbound_http_request,
 MaxPerSecond = 100,
+
 case deigma:report(Metric, MaxPerSecond) of
     {accept, SampleRate} ->
         % your_metrics:report(inbound_http_request, SampleRate);
