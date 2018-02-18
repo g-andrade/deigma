@@ -26,12 +26,12 @@ case deigma:report(EventType, MaxPerSecond) of
 end.
 ```
 
-  - `Event` is an arbitrary term that categorizes your event
-  - `MaxPerSecond` is the ceiling on how many `Event` occurences you
-    want to `accept` per second
-  - `SampleRate` represents the percentage of `Event` occurences that
-    were accepted over the last second; it's a floating point number
-    between `0.0` and `1.0`
+  - `EventType` is an arbitrary term that categorizes your event
+  - `MaxPerSecond` is a ceiling on how many `EventType` occurences
+    you're willing to `accept`, per second
+  - `SampleRate` represents the percentage of `EventType` occurences
+    that were accepted over the last second; it's a floating point
+    number between `0.0` and `1.0`
 
 #### <span id="Details">Details</span>
 
