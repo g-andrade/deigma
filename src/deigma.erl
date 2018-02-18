@@ -45,17 +45,17 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(Metric) -> {Decision, SampleRate}
-        when Metric :: term(),
+-spec report(EventType) -> {Decision, SampleRate}
+        when EventType :: term(),
              Decision :: accept | drop,
              SampleRate :: float().
-report(Metric) ->
-    report(Metric, infinity).
+report(EventType) ->
+    report(EventType, infinity).
 
--spec report(Metric, Limit) -> {Decision, SampleRate}
-        when Metric :: term(),
+-spec report(EventType, Limit) -> {Decision, SampleRate}
+        when EventType :: term(),
              Limit :: non_neg_integer() | infinity,
              Decision :: accept | drop,
              SampleRate :: float().
-report(Metric, Limit) when ?is_limit(Limit) ->
-    deigma_window_manager:report(Metric, Limit).
+report(EventType, Limit) when ?is_limit(Limit) ->
+    deigma_window_manager:report(EventType, Limit).
