@@ -6,7 +6,7 @@
 ### <span id="deigma_-_Event_sampler">deigma - Event sampler</span>
 
 `deigma` is a library for Erlang/OTP and Elixir that allows you to
-sample events based on an arbitrary rate limit.
+sample events based on arbitrary rate limits.
 
 The sampling rate is calculated automatically and continuously adjusted
 over a one second window so that the events that go through are
