@@ -1,5 +1,5 @@
 {application, deigma,
- [{description, "Metric rate limiter with automatic sampling"},
+ [{description, "Event sampler"},
   {vsn, git},
   {registered, []},
   {mod, {deigma_app, []}},
