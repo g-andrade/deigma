@@ -6,27 +6,31 @@
 <a target="_parent" href="https://travis-ci.org/g-andrade/deigma" alt="Build Status">
     <img src="https://travis-ci.org/g-andrade/deigma.png?branch=master"/></a>
 
-== deigma - Metric rate limiter with automatic sampling ==
+== deigma - Event sampler ==
 
-`deigma' is a library for Erlang/OTP and Elixir that allows you to rate limit event metrics by sampling them.
+`deigma' is a library for Erlang/OTP and Elixir that allows you to sample events based on an arbitrary rate limit.
 
 The sampling rate is calculated automatically and continuously adjusted over a one second window so that the events that go through are representative of what's happening in the system.
 
 === Usage ===
 
 <pre lang="erlang" class="erlang">
-Metric = inbound_http_request,
+EventType = inbound_http_request,
 MaxPerSecond = 100,
 
-case deigma:report(Metric, MaxPerSecond) of
+case deigma:report(EventType, MaxPerSecond) of
     {accept, SampleRate} ->
-        % your_metrics:report(inbound_http_request, SampleRate);
+        % your_metrics:report(EventType, SampleRate);
     {drop, _SampleRate} ->
         % ok
 end.
 </pre>
 
-`SampleRate' represents the percentage of `Metric' occurences we've reported over the last second; it's a floating point number between `0.0' and `1.0'.
+<ul>
+<li>`Event' is an arbitrary term that categorizes your event</li>
+<li>`MaxPerSecond' is the ceiling on how many `Event' occurences you want to `accept' per second</li>
+<li>`SampleRate' represents the percentage of `Event' occurences that were accepted over the last second; it's a floating point number between `0.0' and `1.0'</li>
+</ul>
 
 === Details ===
 

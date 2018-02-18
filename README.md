@@ -3,10 +3,10 @@
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
 [![](https://travis-ci.org/g-andrade/deigma.png?branch=master)](https://travis-ci.org/g-andrade/deigma)
 
-### <span id="deigma_-_Metric_rate_limiter_with_automatic_sampling">deigma - Metric rate limiter with automatic sampling</span>
+### <span id="deigma_-_Event_sampler">deigma - Event sampler</span>
 
-`deigma` is a library for Erlang/OTP and Elixir that allows you to rate
-limit event metrics by sampling them.
+`deigma` is a library for Erlang/OTP and Elixir that allows you to
+sample events based on an arbitrary rate limit.
 
 The sampling rate is calculated automatically and continuously adjusted
 over a one second window so that the events that go through are
@@ -15,20 +15,23 @@ representative of what's happening in the system.
 #### <span id="Usage">Usage</span>
 
 ``` erlang
-Metric = inbound_http_request,
+EventType = inbound_http_request,
 MaxPerSecond = 100,
 
-case deigma:report(Metric, MaxPerSecond) of
+case deigma:report(EventType, MaxPerSecond) of
     {accept, SampleRate} ->
-        % your_metrics:report(inbound_http_request, SampleRate);
+        % your_metrics:report(EventType, SampleRate);
     {drop, _SampleRate} ->
         % ok
 end.
 ```
 
-`SampleRate` represents the percentage of `Metric` occurences we've
-reported over the last second; it's a floating point number between
-`0.0` and `1.0`.
+  - `Event` is an arbitrary term that categorizes your event
+  - `MaxPerSecond` is the ceiling on how many `Event` occurences you
+    want to `accept` per second
+  - `SampleRate` represents the percentage of `Event` occurences that
+    were accepted over the last second; it's a floating point number
+    between `0.0` and `1.0`
 
 #### <span id="Details">Details</span>
 
