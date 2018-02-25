@@ -75,11 +75,11 @@
 %% ------------------------------------------------------------------
 
 -spec report(term(), non_neg_integer() | infinity, timeout())
-        -> {accept | drop, float()}.
+        -> {accept | drop, float()} | timeout.
 report(EventType, MaxPerSecond, Timeout) ->
-    Window = find_or_create_window(EventType),
-    case deigma_window:report(Window#window.pid, MaxPerSecond, Timeout) of
-        window_stopped ->
+    WindowPid = find_or_create_window(EventType),
+    case deigma_window:report(WindowPid, MaxPerSecond, Timeout) of
+        stopped ->
             % window went away; try again
             report(EventType, MaxPerSecond, Timeout);
         Result ->
@@ -142,8 +142,8 @@ find_or_create_window(EventType) ->
     case find_window(EventType) of
         undefined ->
             gen_server:call(?SERVER, {find_or_create_window, EventType}, infinity);
-        Window ->
-            Window
+        WindowPid ->
+            WindowPid
     end.
 
 handle_find_or_create_window(EventType, State) ->
@@ -152,20 +152,21 @@ handle_find_or_create_window(EventType, State) ->
             {ok, WindowPid} = deigma_window:start(),
             WindowMonitor = monitor(process, WindowPid),
             Window = #window{ event_type = EventType,
-                              pid = WindowPid },
+                              pid = WindowPid
+                            },
             ets:insert(?TABLE, Window),
             Monitors = State#state.monitors,
             UpdatedMonitors = maps:put(WindowMonitor, EventType, Monitors),
             UpdatedState = State#state{ monitors = UpdatedMonitors },
-            {reply, Window, UpdatedState};
-        Window ->
-            {reply, Window, State}
+            {reply, WindowPid, UpdatedState};
+        WindowPid ->
+            {reply, WindowPid, State}
     end.
 
 find_window(EventType) ->
     case ets:lookup(?TABLE, EventType) of
-        [Window] ->
-            Window;
+        [#window{ pid = WindowPid }] ->
+            WindowPid;
         [] ->
             undefined
     end.

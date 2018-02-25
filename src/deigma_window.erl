@@ -90,11 +90,13 @@ start() ->
 
 -spec report(pid(), non_neg_integer() | infinity, timeout()) ->
         {accept | drop, float()} |
-        window_stopped.
+        timeout |
+        stopped.
 %% @private
-report(WindowPid, MaxPerSecond, _Timeout) ->
+report(WindowPid, MaxPerSecond, Timeout) ->
+    DeadlineMillis = determine_report_deadline(Timeout),
     WindowMonitor = monitor(process, WindowPid),
-    WindowPid ! {report, self(), MaxPerSecond},
+    WindowPid ! {report, self(), MaxPerSecond, DeadlineMillis},
     receive
         {WindowPid, WindowSize, SampleSize, Decision} ->
             demonitor(WindowMonitor, [flush]),
@@ -102,10 +104,13 @@ report(WindowPid, MaxPerSecond, _Timeout) ->
             {Decision, SampleRate};
         {'DOWN', WindowMonitor, process, _Pid, Reason} ->
             case Reason of
-                noproc -> window_stopped;
-                normal -> window_stopped;
+                noproc -> stopped;
+                normal -> stoppec;
                 Other -> error({deigma_window_crashed, Other})
             end
+    after
+        Timeout ->
+            timeout
     end.
 
 -spec start_link() -> {ok, pid()}.
@@ -156,8 +161,16 @@ loop(Parent, Debug, State) ->
             handle_message(Msg, Parent, Debug, State)
     end.
 
-handle_message({report, From, MaxPerSecond}, Parent, Debug, State) ->
+handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State)
+  when DeadlineMillis =:= infinity ->
     handle_report(From, MaxPerSecond, Parent, Debug, State);
+handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State) ->
+    case erlang:monotonic_time() >= DeadlineMillis of
+        true ->
+            loop(Parent, Debug, State);
+        false ->
+            handle_report(From, MaxPerSecond, Parent, Debug, State)
+    end;
 handle_message(check_inactivity, Parent, Debug, State) ->
     check_inactivity(Parent, Debug, State);
 handle_message({system, From, Request}, Parent, Debug, State) ->
@@ -225,3 +238,9 @@ handle_sampling(WindowSize, SampleSize, _MaxPerSecond) ->
         false ->
             {NewWindowSize, SampleSize, drop}
     end.
+
+determine_report_deadline(Timeout) when Timeout =:= infinity ->
+    infinity;
+determine_report_deadline(Timeout) ->
+    Now = erlang:monotonic_time(),
+    Now + erlang:convert_time_unit(Timeout, milli_seconds, native).

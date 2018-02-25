@@ -48,14 +48,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(EventType) -> {Decision, SampleRate}
+-spec report(EventType) -> {Decision, SampleRate} | timeout
         when EventType :: term(),
              Decision :: accept | drop,
              SampleRate :: float().
 report(EventType) ->
     deigma_window_manager:report(EventType, ?DEFAULT_MAX_PER_SECOND, ?DEFAULT_TIMEOUT).
 
--spec report(EventType, MaxPerSecond | Options) -> {Decision, SampleRate}
+-spec report(EventType, MaxPerSecond | Options) -> {Decision, SampleRate} | timeout
         when EventType :: term(),
              MaxPerSecond :: non_neg_integer(),
              Options :: [Option],
