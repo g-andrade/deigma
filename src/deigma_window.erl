@@ -19,7 +19,6 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(deigma_window).
--compile([inline]).
 
 % based on https://gist.github.com/marcelog/97708058cd17f86326c82970a7f81d40#file-simpleproc-erl
 
@@ -70,6 +69,7 @@
           window = queue:new() :: queue:queue(event()),
           window_size = 0 :: non_neg_integer(),
           sample_size = 0 :: non_neg_integer(),
+          next_purge_ts :: undefined | timestamp(),
           time_span = erlang:convert_time_unit(1, seconds, native) :: timestamp(),
           last_active = erlang:monotonic_time() :: timestamp()
          }).
@@ -94,7 +94,6 @@ start() ->
         stopped.
 %% @private
 report(WindowPid, MaxPerSecond, Timeout) ->
-    DeadlineMillis = determine_report_deadline(Timeout),
     WindowMonitor = monitor(process, WindowPid),
     WindowPid ! {report, self(), MaxPerSecond, DeadlineMillis},
     receive
@@ -127,9 +126,10 @@ start_link() ->
 init([Parent]) ->
     Debug = sys:debug_options([]),
     proc_lib:init_ack(Parent, {ok, self()}),
-    erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
+    %erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
+    State = #state{},
     %fprof:apply(fun loop/3, [Parent, Debug, State]).
-    loop(Parent, Debug, #state{}).
+    loop(Parent, Debug, State).
 
 -spec system_code_change(state(), module(), term(), term()) -> {ok, state()}.
 %% @private
@@ -154,11 +154,13 @@ system_terminate(Reason, _Parent, _Debug, _State) ->
 %%-------------------------------------------------------------------
 
 loop(Parent, Debug, State) ->
+    PurgeTimeout = next_purge_timeout(State),
     receive
-        %{system, _From, _Request} = Msg ->
-        %    handle_message(Msg, Parent, Debug, State);
         Msg ->
             handle_message(Msg, Parent, Debug, State)
+    after
+        PurgeTimeout ->
+            purge(Parent, Debug, State)
     end.
 
 handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State) ->
@@ -173,18 +175,22 @@ handle_message(check_inactivity, Parent, Debug, State) ->
 handle_message({system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State).
 
+next_purge_timeout(State) when State#state.next_purge_ts =:= undefined ->
+    infinity;
+next_purge_timeout(State) ->
+    PurgeTimestamp = State#state.next_purge_ts,
+    TimeLeft = max(0, PurgeTimestamp - erlang:monotonic_time()),
+    erlang:convert_time_unit(TimeLeft, native, milli_seconds).
+
 handle_report(From, MaxPerSecond, Parent, Debug, State) ->
     Window = State#state.window,
-    Timespan = State#state.time_span,
     WindowSize = State#state.window_size,
     SampleSize = State#state.sample_size,
-    {PurgedWindow, PurgedWindowSize, PurgedSampleSize} =
-        purge_events(Timespan, Window, WindowSize, SampleSize),
 
     {UpdatedWindowSize, UpdatedSampleSize, Decision} =
-        handle_sampling(PurgedWindowSize, PurgedSampleSize, MaxPerSecond),
+        handle_sampling(WindowSize, SampleSize, MaxPerSecond),
     Now = erlang:monotonic_time(),
-    UpdatedWindow = queue:in({Now, Decision}, PurgedWindow),
+    UpdatedWindow = queue:in({Now, Decision}, Window),
     From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision},
     UpdatedState =
         State#state{ window = UpdatedWindow,
@@ -192,24 +198,39 @@ handle_report(From, MaxPerSecond, Parent, Debug, State) ->
                      sample_size = UpdatedSampleSize,
                      last_active = Now
                    },
-    loop(Parent, Debug, UpdatedState).
+    ensure_next_purge(Parent, Debug, UpdatedState).
 
-purge_events(_Timespan, Window, WindowSize, SampleSize) when WindowSize =:= 0 ->
-    {Window, WindowSize, SampleSize};
-purge_events(Timespan, Window, WindowSize, SampleSize) ->
-    MinTimestamp = erlang:monotonic_time() - Timespan,
-    {OldestTimestamp, OldestDecision} = queue:get(Window),
-    case OldestTimestamp =< MinTimestamp of
-        true ->
-            UpdatedWindow = queue:drop(Window),
-            case OldestDecision =:= accept of
-                true ->
-                    purge_events(Timespan, UpdatedWindow, WindowSize - 1, SampleSize - 1);
-                _ ->
-                    purge_events(Timespan, UpdatedWindow, WindowSize - 1, SampleSize)
-            end;
-        _ ->
-            {Window, WindowSize, SampleSize}
+ensure_next_purge(Parent, Debug, State) when State#state.next_purge_ts =:= undefined,
+                                             State#state.window_size > 0 ->
+    Window = State#state.window,
+    {EventTimestamp, _EventDecision} = queue:get(Window),
+    NextPurgeTs = EventTimestamp + State#state.time_span,
+    UpdatedState = State#state{ next_purge_ts = NextPurgeTs },
+    loop(Parent, Debug, UpdatedState);
+ensure_next_purge(Parent, Debug, State) ->
+    loop(Parent, Debug, State).
+
+purge(Parent, Debug, State) ->
+    Window = State#state.window,
+    {{value, {_EventTimestamp, EventDecision}}, UpdatedWindow}  = queue:out(Window),
+    UpdatedWindowSize = State#state.window_size - 1,
+    case EventDecision of
+        accept ->
+            UpdatedSampleSize = State#state.sample_size - 1,
+            UpdatedState =
+                State#state{ window = UpdatedWindow,
+                             window_size = UpdatedWindowSize,
+                             sample_size = UpdatedSampleSize,
+                             next_purge_ts = undefined
+                           },
+            ensure_next_purge(Parent, Debug, UpdatedState);
+        drop ->
+            UpdatedState =
+                State#state{ window = UpdatedWindow,
+                             window_size = UpdatedWindowSize,
+                             next_purge_ts = undefined
+                           },
+            ensure_next_purge(Parent, Debug, UpdatedState)
     end.
 
 check_inactivity(Parent, Debug, State) ->
@@ -218,7 +239,7 @@ check_inactivity(Parent, Debug, State) ->
         true ->
             exit(normal);
         false ->
-            erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
+            %erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
             loop(Parent, Debug, State)
     end.
 
