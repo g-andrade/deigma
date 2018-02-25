@@ -27,8 +27,11 @@
 -define(SERVER, ?MODULE).
 -define(TABLE, ?MODULE).
 
--define(SCAN_INTERVAL, 2). % in seconds
--define(OVERLOAD_HIGH_WATERMARK, (10 * ?SCAN_INTERVAL)).
+% in seconds
+-define(SCAN_INTERVAL_MEAN, 5).
+-define(SCAN_INTERVAL_STDDEV, 1).
+
+-define(OVERLOAD_HIGH_WATERMARK, (10 * ?SCAN_INTERVAL_MEAN)).
 -define(OVERLOAD_LOW_WATERMARK, (?OVERLOAD_HIGH_WATERMARK div 2)).
 
 %% ------------------------------------------------------------------
@@ -98,7 +101,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 schedule_scan_timer() ->
-    erlang:send_after(timer:seconds(?SCAN_INTERVAL), self(), scan).
+    erlang:send_after(scan_interval_ms(), self(), scan).
+
+scan_interval_ms() ->
+    InSeconds = max(0, ?SCAN_INTERVAL_MEAN + (math:sqrt(?SCAN_INTERVAL_STDDEV) * rand:normal())),
+    trunc(InSeconds * 1000).
 
 currently_overloaded(PreviouslyOverloaded) ->
     ets:foldl(

@@ -58,11 +58,13 @@
 %% Macro Definitions
 %%-------------------------------------------------------------------
 
--define(inactivity_timeout(), (timer:seconds(5))). % in milliseconds
+% in seconds
+-define(inactivity_timeout_mean(), (5)).
+-define(inactivity_timeout_stddev(), (1)).
 
--define(TIME_SPAN, 1). % in seconds
--define(native_time_span(), (erlang:convert_time_unit(?TIME_SPAN, seconds, native))). % in native units
--define(report_timeout(), (timer:seconds(?TIME_SPAN))). % in milliseconds
+-define(time_span(), 1). % in seconds
+-define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))). % in native units
+-define(report_timeout(), (timer:seconds(?time_span()))). % in milliseconds
 
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
@@ -170,7 +172,7 @@ loop(Parent, Debug, State) when State#state.next_purge_ts =/= undefined ->
             purge(Parent, Debug, State)
     end;
 loop(Parent, Debug, State) ->
-    Timeout = ?inactivity_timeout(),
+    Timeout = inactivity_timeout(),
     receive
         Msg -> handle_message(Msg, Parent, Debug, State)
     after
@@ -253,3 +255,7 @@ handle_sampling(WindowSize, SampledCounter, _MaxPerSecond) ->
         false ->
             {NewWindowSize, SampledCounter, drop}
     end.
+
+inactivity_timeout() ->
+    InSeconds = max(0, ?inactivity_timeout_mean() + (math:sqrt(?inactivity_timeout_stddev()) * rand:normal())),
+    trunc(InSeconds * 1000).
