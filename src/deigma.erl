@@ -56,7 +56,7 @@ report(EventType) ->
 
 -spec report(EventType, MaxPerSecond) -> {Decision, SampleRate} | overloaded
         when EventType :: term(),
-             MaxPerSecond :: non_neg_integer(),
+             MaxPerSecond :: non_neg_integer() | infinity,
              Decision :: accept | drop,
              SampleRate :: float().
 report(EventType, MaxPerSecond) when ?is_limit(MaxPerSecond) ->
