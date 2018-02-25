@@ -1,8 +1,6 @@
 -module(deigma_overload_monitor).
 -behaviour(gen_server).
 
--include_lib("stdlib/include/ms_transform.hrl").
-
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -78,6 +76,7 @@ handle_cast(_Cast, State) ->
 handle_info(scan, State) ->
     PreviouslyOverloaded = State#state.overloaded,
     CurrentlyOverloaded = currently_overloaded(PreviouslyOverloaded),
+    ets:delete_all_objects(?TABLE),
     NewlyOverloaded = gb_sets:subtract(CurrentlyOverloaded, PreviouslyOverloaded),
     NewlyUnburdened = gb_sets:subtract(PreviouslyOverloaded, CurrentlyOverloaded),
     gb_sets_foreach(fun handle_newly_overloaded/1, NewlyOverloaded),
@@ -102,29 +101,22 @@ schedule_scan_timer() ->
     erlang:send_after(timer:seconds(?SCAN_INTERVAL), self(), scan).
 
 currently_overloaded(PreviouslyOverloaded) ->
-    PotentiallyOverloadList = potentially_overloaded_list(),
-    lists:foldl(
-      fun ({EventType, TimeoutCounter}, Acc) ->
-              case (gb_sets:is_member(EventType, PreviouslyOverloaded) orelse
-                    TimeoutCounter >= ?OVERLOAD_HIGH_WATERMARK)
-              of
-                  true ->
-                      gb_sets:add(EventType, Acc);
-                  false ->
-                      Acc
+    ets:foldl(
+      fun (Window, Acc) ->
+              EventType = Window#window.event_type,
+              TimeoutCounter = Window#window.timeout_counter,
+              WasOverloaded = gb_sets:is_member(EventType, PreviouslyOverloaded),
+              IsOverloaded = TimeoutCounter >= ?OVERLOAD_HIGH_WATERMARK,
+
+              if WasOverloaded andalso (TimeoutCounter >= ?OVERLOAD_LOW_WATERMARK) ->
+                     gb_sets:add(EventType, Acc);
+                 IsOverloaded ->
+                     gb_sets:add(EventType, Acc);
+                 true ->
+                     Acc
               end
       end,
-      gb_sets:new(), PotentiallyOverloadList).
-
-potentially_overloaded_list() ->
-    MatchSpec =
-        ets:fun2ms(
-          fun (Window) when Window#window.timeout_counter >= ?OVERLOAD_LOW_WATERMARK ->
-                  {Window#window.event_type, Window#window.timeout_counter}
-          end),
-    List = ets:select(?TABLE, MatchSpec),
-    ets:delete_all_objects(?TABLE),
-    List.
+      gb_sets:new(), ?TABLE).
 
 gb_sets_foreach(Fun, Set) ->
     List = gb_sets:to_list(Set),
@@ -140,16 +132,14 @@ handle_newly_unburdened(EventType) ->
 
 log_overload_detected(EventType) ->
     Report =
-        [{type, deigma_window_overload_alarm},
-         {window, EventType},
-         {status, on}
+        [{type, deigma_window_overloaded},
+         {window, EventType}
         ],
     error_logger:warning_report(Report).
 
 log_unburden_detected(EventType) ->
     Report =
-        [{type, deigma_window_overload_alarm},
-         {window, EventType},
-         {status, off}
+        [{type, deigma_window_ok},
+         {window, EventType}
         ],
     error_logger:info_report(Report).
