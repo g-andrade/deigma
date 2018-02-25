@@ -55,16 +55,34 @@
 report(EventType) ->
     deigma_window_manager:report(EventType, ?DEFAULT_MAX_PER_SECOND, ?DEFAULT_TIMEOUT).
 
--spec report(EventType, MaxPerSecond | Options) -> {Decision, SampleRate} | timeout
+-spec report(EventType, MaxPerSecond | Opts) -> {Decision, SampleRate} | timeout
         when EventType :: term(),
              MaxPerSecond :: non_neg_integer(),
-             Options :: [Option],
-             Option :: {max_per_second, MaxPerSecond} | {timeout, timeout()},
+             Opts :: [Option],
+             Option :: {max_per_second, MaxPerSecond} | {timeout, non_neg_integer()},
              Decision :: accept | drop,
              SampleRate :: float().
 report(EventType, MaxPerSecond) when ?is_limit(MaxPerSecond) ->
     deigma_window_manager:report(EventType, MaxPerSecond, ?DEFAULT_TIMEOUT);
-report(EventType, Options) when is_list(Options) -> 
-    MaxPerSecond = proplists:get_value(max_per_second, Options, ?DEFAULT_MAX_PER_SECOND),
-    Timeout = proplists:get_value(timeout, Options, ?DEFAULT_TIMEOUT),
+report(EventType, Opts) ->
+    {MaxPerSecond, Timeout} = parse_opts(Opts),
     deigma_window_manager:report(EventType, MaxPerSecond, Timeout).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
+parse_opts(Opts) ->
+    Acc0 = {?DEFAULT_MAX_PER_SECOND, ?DEFAULT_TIMEOUT},
+    parse_opts(Opts, Acc0).
+
+parse_opts([{max_per_second, MaxPerSecond} | Next], Acc1) when ?is_limit(MaxPerSecond) ->
+    Acc2 = setelement(1, Acc1, MaxPerSecond),
+    parse_opts(Next, Acc2);
+parse_opts([{timeout, Timeout} | Next], Acc1) when ?is_non_neg_integer(Timeout) ->
+    Acc2 = setelement(2, Acc1, Timeout),
+    parse_opts(Next, Acc2);
+parse_opts([], Acc) ->
+    Acc;
+parse_opts(Invalid, _Acc) ->
+    error({badarg, Invalid}).

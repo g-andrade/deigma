@@ -88,7 +88,7 @@
 start() ->
     deigma_window_sup:start_child([]).
 
--spec report(pid(), non_neg_integer() | infinity, timeout()) ->
+-spec report(pid(), non_neg_integer() | infinity, non_neg_integer()) ->
         {accept | drop, float()} |
         timeout |
         stopped.
@@ -161,9 +161,6 @@ loop(Parent, Debug, State) ->
             handle_message(Msg, Parent, Debug, State)
     end.
 
-handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State)
-  when DeadlineMillis =:= infinity ->
-    handle_report(From, MaxPerSecond, Parent, Debug, State);
 handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State) ->
     case erlang:monotonic_time() >= DeadlineMillis of
         true ->
@@ -239,8 +236,6 @@ handle_sampling(WindowSize, SampleSize, _MaxPerSecond) ->
             {NewWindowSize, SampleSize, drop}
     end.
 
-determine_report_deadline(Timeout) when Timeout =:= infinity ->
-    infinity;
 determine_report_deadline(Timeout) ->
     Now = erlang:monotonic_time(),
     Now + erlang:convert_time_unit(Timeout, milli_seconds, native).
