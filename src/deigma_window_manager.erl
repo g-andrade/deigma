@@ -28,6 +28,8 @@
 
 -export(
    [report/2,
+    mark_as_overloaded/1,
+    unmark_as_overloaded/1,
     start_link/0
    ]).
 
@@ -65,21 +67,39 @@
          }).
 -type state() :: #state{}.
 
+-record(window, {
+          event_type :: term(),
+          pid :: pid(),
+          is_overloaded :: boolean()
+         }).
+
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
 -spec report(term(), non_neg_integer() | infinity)
-        -> {accept | drop, float()}.
+        -> {accept | drop, float()} | overloaded.
 report(EventType, Limit) ->
-    WindowPid = find_or_create_window(EventType),
-    case deigma_window:report(WindowPid, Limit) of
+    Window = find_or_create_window(EventType),
+    case (not Window#window.is_overloaded) andalso
+         deigma_window:report(Window#window.pid, Limit)
+    of
+        false ->
+            overloaded;
         window_stopped ->
             % window went away; try again
             report(EventType, Limit);
         Result ->
             Result
     end.
+
+-spec mark_as_overloaded(term()) -> boolean().
+mark_as_overloaded(EventType) ->
+    true = ets:update_element(?TABLE, EventType, {#window.is_overloaded, true}).
+
+-spec unmark_as_overloaded(term()) -> boolean().
+unmark_as_overloaded(EventType) ->
+    true = ets:update_element(?TABLE, EventType, {#window.is_overloaded, false}).
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -91,7 +111,9 @@ start_link() ->
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
-    _ = ets:new(?TABLE, [named_table, protected, {read_concurrency,true}]),
+    EtsOpts = [named_table, public, {keypos,#window.event_type},
+               {read_concurrency,true}],
+    _ = ets:new(?TABLE, EtsOpts),
     {ok, #state{}}.
 
 -spec handle_call(term(), {pid(), reference()}, state())
@@ -113,7 +135,7 @@ handle_cast(_Cast, State) ->
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
     {EventType, UpdatedMonitors} = maps_take(Ref, Monitors),
-    ets:delete(?TABLE, EventType),
+    [#window{}] = ets:take(?TABLE, EventType),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
@@ -135,28 +157,31 @@ find_or_create_window(EventType) ->
     case find_window(EventType) of
         undefined ->
             gen_server:call(?SERVER, {find_or_create_window, EventType}, infinity);
-        WindowPid ->
-            WindowPid
+        Window ->
+            Window
     end.
 
 handle_find_or_create_window(EventType, State) ->
     case find_window(EventType) of
         undefined ->
-            {ok, WindowPid} = deigma_window:start(),
+            {ok, WindowPid} = deigma_window:start(EventType),
             WindowMonitor = monitor(process, WindowPid),
-            ets:insert(?TABLE, {EventType, WindowPid}),
+            Window = #window{ event_type = EventType,
+                              pid = WindowPid,
+                              is_overloaded = false },
+            ets:insert(?TABLE, Window),
             Monitors = State#state.monitors,
             UpdatedMonitors = maps:put(WindowMonitor, EventType, Monitors),
             UpdatedState = State#state{ monitors = UpdatedMonitors },
-            {reply, WindowPid, UpdatedState};
-        WindowPid ->
-            {reply, WindowPid, State}
+            {reply, Window, UpdatedState};
+        Window ->
+            {reply, Window, State}
     end.
 
 find_window(EventType) ->
     case ets:lookup(?TABLE, EventType) of
-        [{_, WindowPid}] ->
-            WindowPid;
+        [Window] ->
+            Window;
         [] ->
             undefined
     end.

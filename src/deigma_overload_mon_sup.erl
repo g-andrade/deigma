@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(deigma_sup).
+-module(deigma_overload_mon_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
@@ -27,7 +27,8 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/0
+   [start_child/1,
+    start_link/0
    ]).
 
 -ignore_xref(
@@ -50,11 +51,14 @@
 -define(SERVER, ?MODULE).
 
 -define(CHILD(M), {M, {M,start_link,[]}, temporary, brutal_kill, worker, [M]}).
--define(SUP_CHILD(M), {M, {M,start_link,[]}, temporary, 5000, supervisor, [M]}).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
+
+-spec start_child(list()) -> {ok, pid()}.
+start_child(Args) ->
+    supervisor:start_child(?SERVER, Args).
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -65,10 +69,6 @@ start_link() ->
 %% ------------------------------------------------------------------
 
 init([]) ->
-    SupFlags = {one_for_all, 10, 1},
-    Children =
-        [?SUP_CHILD(deigma_window_sup),
-         ?SUP_CHILD(deigma_overload_mon_sup),
-         ?CHILD(deigma_window_manager)
-        ],
+    SupFlags = {simple_one_for_one, 10, 1},
+    Children = [?CHILD(deigma_overload_mon)],
     {ok, {SupFlags, Children}}.

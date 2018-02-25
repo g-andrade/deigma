@@ -5,6 +5,7 @@
   {mod, {deigma_app, []}},
   {applications,
    [kernel,
+    sasl,
     stdlib
    ]},
   {env,[]},
