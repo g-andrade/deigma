@@ -68,7 +68,6 @@ init([]) ->
     SupFlags = {one_for_all, 10, 1},
     Children =
         [?SUP_CHILD(deigma_window_sup),
-         ?SUP_CHILD(deigma_overload_mon_sup),
          ?CHILD(deigma_window_manager)
         ],
     {ok, {SupFlags, Children}}.

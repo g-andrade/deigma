@@ -28,8 +28,6 @@
 
 -export(
    [report/2,
-    mark_as_overloaded/1,
-    unmark_as_overloaded/1,
     start_link/0
    ]).
 
@@ -69,8 +67,7 @@
 
 -record(window, {
           event_type :: term(),
-          pid :: pid(),
-          is_overloaded :: boolean()
+          pid :: pid()
          }).
 
 %% ------------------------------------------------------------------
@@ -78,28 +75,16 @@
 %% ------------------------------------------------------------------
 
 -spec report(term(), non_neg_integer() | infinity)
-        -> {accept | drop, float()} | overloaded.
+        -> {accept | drop, float()}.
 report(EventType, Limit) ->
     Window = find_or_create_window(EventType),
-    case (not Window#window.is_overloaded) andalso
-         deigma_window:report(Window#window.pid, Limit)
-    of
-        false ->
-            overloaded;
+    case deigma_window:report(Window#window.pid, Limit) of
         window_stopped ->
             % window went away; try again
             report(EventType, Limit);
         Result ->
             Result
     end.
-
--spec mark_as_overloaded(term()) -> boolean().
-mark_as_overloaded(EventType) ->
-    true = ets:update_element(?TABLE, EventType, {#window.is_overloaded, true}).
-
--spec unmark_as_overloaded(term()) -> boolean().
-unmark_as_overloaded(EventType) ->
-    true = ets:update_element(?TABLE, EventType, {#window.is_overloaded, false}).
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -164,11 +149,10 @@ find_or_create_window(EventType) ->
 handle_find_or_create_window(EventType, State) ->
     case find_window(EventType) of
         undefined ->
-            {ok, WindowPid} = deigma_window:start(EventType),
+            {ok, WindowPid} = deigma_window:start(),
             WindowMonitor = monitor(process, WindowPid),
             Window = #window{ event_type = EventType,
-                              pid = WindowPid,
-                              is_overloaded = false },
+                              pid = WindowPid },
             ets:insert(?TABLE, Window),
             Monitors = State#state.monitors,
             UpdatedMonitors = maps:put(WindowMonitor, EventType, Monitors),

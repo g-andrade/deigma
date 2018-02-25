@@ -28,9 +28,9 @@
 %%-------------------------------------------------------------------
 
 -export(
-   [start/1,
+   [start/0,
     report/2,
-    start_link/1
+    start_link/0
    ]).
 
 -ignore_xref(
@@ -71,9 +71,7 @@
           window_size = 0 :: non_neg_integer(),
           sample_size = 0 :: non_neg_integer(),
           time_span = erlang:convert_time_unit(1, seconds, native) :: timestamp(),
-          last_active = erlang:monotonic_time() :: timestamp(),
-          overload_mon_pid :: pid(),
-          overload_mon_monitor :: reference()
+          last_active = erlang:monotonic_time() :: timestamp()
          }).
 -type state() :: state().
 
@@ -85,24 +83,22 @@
 %% API Function Definitions
 %%-------------------------------------------------------------------
 
--spec start(term()) -> {ok, pid()}.
+-spec start() -> {ok, pid()}.
 %% @private
-start(EventType) ->
-    deigma_window_sup:start_child([EventType]).
+start() ->
+    deigma_window_sup:start_child([]).
 
 -spec report(pid(), non_neg_integer() | infinity) ->
         {accept | drop, float()} |
         window_stopped.
 %% @private
 report(WindowPid, Limit) ->
-    StartTs = erlang:monotonic_time(),
     WindowMonitor = monitor(process, WindowPid),
     WindowPid ! {report, self(), Limit},
     receive
-        {WindowPid, WindowSize, SampleSize, Decision, OverloadMonPid} ->
+        {WindowPid, WindowSize, SampleSize, Decision} ->
             demonitor(WindowMonitor, [flush]),
             SampleRate = SampleSize / WindowSize,
-            deigma_overload_mon:measure_window_delay(OverloadMonPid, StartTs),
             {Decision, SampleRate};
         {'DOWN', WindowMonitor, process, _Pid, Reason} ->
             case Reason of
@@ -112,10 +108,10 @@ report(WindowPid, Limit) ->
             end
     end.
 
--spec start_link(term()) -> {ok, pid()}.
+-spec start_link() -> {ok, pid()}.
 %% @private
-start_link(EventType) ->
-    proc_lib:start_link(?MODULE, init, [[self(), EventType]]).
+start_link() ->
+    proc_lib:start_link(?MODULE, init, [[self()]]).
 
 %%-------------------------------------------------------------------
 %% OTP Function Definitions
@@ -123,16 +119,12 @@ start_link(EventType) ->
 
 -spec init([pid() | term(), ...]) -> no_return().
 %% @private
-init([Parent, EventType]) ->
+init([Parent]) ->
     Debug = sys:debug_options([]),
     proc_lib:init_ack(Parent, {ok, self()}),
-    {ok, OverloadMonPid} = deigma_overload_mon:start(EventType, self()),
-    State = #state{ overload_mon_pid = OverloadMonPid,
-                    overload_mon_monitor = monitor(process, OverloadMonPid)
-                  },
     erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
     %fprof:apply(fun loop/3, [Parent, Debug, State]).
-    loop(Parent, Debug, State).
+    loop(Parent, Debug, #state{}).
 
 -spec system_code_change(state(), module(), term(), term()) -> {ok, state()}.
 %% @private
@@ -168,9 +160,6 @@ handle_message({report, From, Limit}, Parent, Debug, State) ->
     handle_report(From, Limit, Parent, Debug, State);
 handle_message(check_inactivity, Parent, Debug, State) ->
     check_inactivity(Parent, Debug, State);
-handle_message({'DOWN', Ref, process, _Pid, _Reason}, _Parent, _Debug, State)
-  when Ref =:= State#state.overload_mon_monitor ->
-    exit(normal);
 handle_message({system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State).
 
@@ -186,8 +175,7 @@ handle_report(From, Limit, Parent, Debug, State) ->
         handle_sampling(PurgedWindowSize, PurgedSampleSize, Limit),
     Now = erlang:monotonic_time(),
     UpdatedWindow = queue:in({Now, Decision}, PurgedWindow),
-    OverloadMonPid = State#state.overload_mon_pid,
-    From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision, OverloadMonPid},
+    From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision},
     UpdatedState =
         State#state{ window = UpdatedWindow,
                      window_size = UpdatedWindowSize,
