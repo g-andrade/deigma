@@ -31,8 +31,9 @@
 -define(SCAN_INTERVAL_MEAN, 5).
 -define(SCAN_INTERVAL_STDDEV, 1).
 
--define(OVERLOAD_HIGH_WATERMARK, (10 * ?SCAN_INTERVAL_MEAN)).
--define(OVERLOAD_LOW_WATERMARK, (?OVERLOAD_HIGH_WATERMARK div 2)).
+% per second
+-define(OVERLOAD_HIGH_WATERMARK, 10).
+-define(OVERLOAD_LOW_WATERMARK,   5).
 
 %% ------------------------------------------------------------------
 %% Record and Type Definitions
@@ -76,9 +77,11 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Cast, State) ->
     {stop, unexpected_cast, State}.
 
-handle_info(scan, State) ->
+handle_info({scan, ScheduledTs}, State) ->
+    TimeElapsed = erlang:monotonic_time() - ScheduledTs,
+    SecondsElapsed = TimeElapsed / erlang:convert_time_unit(1, seconds, native),
     PreviouslyOverloaded = State#state.overloaded,
-    CurrentlyOverloaded = currently_overloaded(PreviouslyOverloaded),
+    CurrentlyOverloaded = currently_overloaded(PreviouslyOverloaded, SecondsElapsed),
     ets:delete_all_objects(?TABLE),
     NewlyOverloaded = gb_sets:subtract(CurrentlyOverloaded, PreviouslyOverloaded),
     NewlyUnburdened = gb_sets:subtract(PreviouslyOverloaded, CurrentlyOverloaded),
@@ -101,21 +104,24 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 schedule_scan_timer() ->
-    erlang:send_after(scan_interval_ms(), self(), scan).
+    Now = erlang:monotonic_time(),
+    erlang:send_after(scan_interval_ms(), self(), {scan, Now}).
 
 scan_interval_ms() ->
     InSeconds = max(0, ?SCAN_INTERVAL_MEAN + (math:sqrt(?SCAN_INTERVAL_STDDEV) * rand:normal())),
     trunc(InSeconds * 1000).
 
-currently_overloaded(PreviouslyOverloaded) ->
+currently_overloaded(PreviouslyOverloaded, SecondsElapsed) ->
+    HighWatermark = ?OVERLOAD_HIGH_WATERMARK * SecondsElapsed,
+    LowWatermark = ?OVERLOAD_LOW_WATERMARK * SecondsElapsed,
     ets:foldl(
       fun (Window, Acc) ->
               EventType = Window#window.event_type,
               TimeoutCounter = Window#window.timeout_counter,
               WasOverloaded = gb_sets:is_member(EventType, PreviouslyOverloaded),
-              IsOverloaded = TimeoutCounter >= ?OVERLOAD_HIGH_WATERMARK,
+              IsOverloaded = TimeoutCounter >= HighWatermark,
 
-              if WasOverloaded andalso (TimeoutCounter >= ?OVERLOAD_LOW_WATERMARK) ->
+              if WasOverloaded andalso (TimeoutCounter >= LowWatermark) ->
                      gb_sets:add(EventType, Acc);
                  IsOverloaded ->
                      gb_sets:add(EventType, Acc);
