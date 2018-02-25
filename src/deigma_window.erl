@@ -92,9 +92,9 @@ start() ->
         {accept | drop, float()} |
         window_stopped.
 %% @private
-report(WindowPid, Limit) ->
+report(WindowPid, MaxPerSecond) ->
     WindowMonitor = monitor(process, WindowPid),
-    WindowPid ! {report, self(), Limit},
+    WindowPid ! {report, self(), MaxPerSecond},
     receive
         {WindowPid, WindowSize, SampleSize, Decision} ->
             demonitor(WindowMonitor, [flush]),
@@ -156,14 +156,14 @@ loop(Parent, Debug, State) ->
             handle_message(Msg, Parent, Debug, State)
     end.
 
-handle_message({report, From, Limit}, Parent, Debug, State) ->
-    handle_report(From, Limit, Parent, Debug, State);
+handle_message({report, From, MaxPerSecond}, Parent, Debug, State) ->
+    handle_report(From, MaxPerSecond, Parent, Debug, State);
 handle_message(check_inactivity, Parent, Debug, State) ->
     check_inactivity(Parent, Debug, State);
 handle_message({system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State).
 
-handle_report(From, Limit, Parent, Debug, State) ->
+handle_report(From, MaxPerSecond, Parent, Debug, State) ->
     Window = State#state.window,
     Timespan = State#state.time_span,
     WindowSize = State#state.window_size,
@@ -172,7 +172,7 @@ handle_report(From, Limit, Parent, Debug, State) ->
         purge_events(Timespan, Window, WindowSize, SampleSize),
 
     {UpdatedWindowSize, UpdatedSampleSize, Decision} =
-        handle_sampling(PurgedWindowSize, PurgedSampleSize, Limit),
+        handle_sampling(PurgedWindowSize, PurgedSampleSize, MaxPerSecond),
     Now = erlang:monotonic_time(),
     UpdatedWindow = queue:in({Now, Decision}, PurgedWindow),
     From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision},
@@ -212,11 +212,11 @@ check_inactivity(Parent, Debug, State) ->
             loop(Parent, Debug, State)
     end.
 
-handle_sampling(WindowSize, SampleSize, Limit) when SampleSize >= Limit ->
+handle_sampling(WindowSize, SampleSize, MaxPerSecond) when SampleSize >= MaxPerSecond ->
     {WindowSize + 1, SampleSize, drop};
-handle_sampling(WindowSize, SampleSize, _Limit) when SampleSize =:= WindowSize ->
+handle_sampling(WindowSize, SampleSize, _MaxPerSecond) when SampleSize =:= WindowSize ->
     {WindowSize + 1, SampleSize + 1, accept};
-handle_sampling(WindowSize, SampleSize, _Limit) ->
+handle_sampling(WindowSize, SampleSize, _MaxPerSecond) ->
     NewWindowSize = WindowSize + 1,
     TentativeNewSampleSize = SampleSize + 1,
     case rand:uniform(NewWindowSize) =< TentativeNewSampleSize of

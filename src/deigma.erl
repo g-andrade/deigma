@@ -52,10 +52,10 @@
 report(EventType) ->
     report(EventType, infinity).
 
--spec report(EventType, Limit) -> {Decision, SampleRate}
+-spec report(EventType, MaxPerSecond) -> {Decision, SampleRate}
         when EventType :: term(),
-             Limit :: non_neg_integer() | infinity,
+             MaxPerSecond :: non_neg_integer() | infinity,
              Decision :: accept | drop,
              SampleRate :: float().
-report(EventType, Limit) when ?is_limit(Limit) ->
-    deigma_window_manager:report(EventType, Limit).
+report(EventType, MaxPerSecond) when ?is_limit(MaxPerSecond) ->
+    deigma_window_manager:report(EventType, MaxPerSecond).
