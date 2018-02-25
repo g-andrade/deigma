@@ -29,7 +29,7 @@
 
 -export(
    [start/0,
-    report/2,
+    report/3,
     start_link/0
    ]).
 
@@ -88,11 +88,11 @@
 start() ->
     deigma_window_sup:start_child([]).
 
--spec report(pid(), non_neg_integer() | infinity) ->
+-spec report(pid(), non_neg_integer() | infinity, timeout()) ->
         {accept | drop, float()} |
         window_stopped.
 %% @private
-report(WindowPid, MaxPerSecond) ->
+report(WindowPid, MaxPerSecond, _Timeout) ->
     WindowMonitor = monitor(process, WindowPid),
     WindowPid ! {report, self(), MaxPerSecond},
     receive

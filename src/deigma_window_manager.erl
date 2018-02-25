@@ -27,7 +27,7 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [report/2,
+   [report/3,
     start_link/0
    ]).
 
@@ -74,14 +74,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(term(), non_neg_integer() | infinity)
+-spec report(term(), non_neg_integer() | infinity, timeout())
         -> {accept | drop, float()}.
-report(EventType, MaxPerSecond) ->
+report(EventType, MaxPerSecond, Timeout) ->
     Window = find_or_create_window(EventType),
-    case deigma_window:report(Window#window.pid, MaxPerSecond) of
+    case deigma_window:report(Window#window.pid, MaxPerSecond, Timeout) of
         window_stopped ->
             % window went away; try again
-            report(EventType, MaxPerSecond);
+            report(EventType, MaxPerSecond, Timeout);
         Result ->
             Result
     end.

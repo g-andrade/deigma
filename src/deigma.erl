@@ -41,6 +41,9 @@
 -define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).
 -define(is_limit(V), (?is_non_neg_integer((V)) orelse ((V) =:= infinity))).
 
+-define(DEFAULT_MAX_PER_SECOND, infinity).
+-define(DEFAULT_TIMEOUT, (timer:seconds(5))).
+
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
@@ -50,12 +53,18 @@
              Decision :: accept | drop,
              SampleRate :: float().
 report(EventType) ->
-    report(EventType, infinity).
+    deigma_window_manager:report(EventType, ?DEFAULT_MAX_PER_SECOND, ?DEFAULT_TIMEOUT).
 
--spec report(EventType, MaxPerSecond) -> {Decision, SampleRate}
+-spec report(EventType, MaxPerSecond | Options) -> {Decision, SampleRate}
         when EventType :: term(),
-             MaxPerSecond :: non_neg_integer() | infinity,
+             MaxPerSecond :: non_neg_integer(),
+             Options :: [Option],
+             Option :: {max_per_second, MaxPerSecond} | {timeout, timeout()},
              Decision :: accept | drop,
              SampleRate :: float().
 report(EventType, MaxPerSecond) when ?is_limit(MaxPerSecond) ->
-    deigma_window_manager:report(EventType, MaxPerSecond).
+    deigma_window_manager:report(EventType, MaxPerSecond, ?DEFAULT_TIMEOUT);
+report(EventType, Options) when is_list(Options) -> 
+    MaxPerSecond = proplists:get_value(max_per_second, Options, ?DEFAULT_MAX_PER_SECOND),
+    Timeout = proplists:get_value(timeout, Options, ?DEFAULT_TIMEOUT),
+    deigma_window_manager:report(EventType, MaxPerSecond, Timeout).
