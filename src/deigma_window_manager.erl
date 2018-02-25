@@ -27,7 +27,9 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [report/3,
+   [report/2,
+    mark_as_overloaded/1,
+    unmark_as_overloaded/1,
     start_link/0
    ]).
 
@@ -67,24 +69,37 @@
 
 -record(window, {
           event_type :: term(),
-          pid :: pid()
+          pid :: pid(),
+          is_overloaded :: boolean()
          }).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(term(), non_neg_integer() | infinity, timeout())
-        -> {accept | drop, float()} | timeout.
-report(EventType, MaxPerSecond, Timeout) ->
-    WindowPid = find_or_create_window(EventType),
-    case deigma_window:report(WindowPid, MaxPerSecond, Timeout) of
+-spec report(term(), non_neg_integer() | infinity)
+        -> {accept | drop, float()} | overloaded.
+report(EventType, MaxPerSecond) ->
+    Window = find_or_create_window(EventType),
+    case (Window#window.is_overloaded orelse
+         deigma_window:report(Window#window.pid, MaxPerSecond))
+    of
+        true ->
+            overloaded;
         stopped ->
             % window went away; try again
-            report(EventType, MaxPerSecond, Timeout);
+            report(EventType, MaxPerSecond);
         Result ->
             Result
     end.
+
+-spec mark_as_overloaded(term()) -> boolean().
+mark_as_overloaded(EventType) ->
+    ets:update_element(?TABLE, EventType, {#window.is_overloaded,true}).
+
+-spec unmark_as_overloaded(term()) -> boolean().
+unmark_as_overloaded(EventType) ->
+    ets:update_element(?TABLE, EventType, {#window.is_overloaded,false}).
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -142,31 +157,32 @@ find_or_create_window(EventType) ->
     case find_window(EventType) of
         undefined ->
             gen_server:call(?SERVER, {find_or_create_window, EventType}, infinity);
-        WindowPid ->
-            WindowPid
+        Window ->
+            Window
     end.
 
 handle_find_or_create_window(EventType, State) ->
     case find_window(EventType) of
         undefined ->
-            {ok, WindowPid} = deigma_window:start(),
+            {ok, WindowPid} = deigma_window:start(EventType),
             WindowMonitor = monitor(process, WindowPid),
             Window = #window{ event_type = EventType,
-                              pid = WindowPid
+                              pid = WindowPid,
+                              is_overloaded = false
                             },
             ets:insert(?TABLE, Window),
             Monitors = State#state.monitors,
             UpdatedMonitors = maps:put(WindowMonitor, EventType, Monitors),
             UpdatedState = State#state{ monitors = UpdatedMonitors },
-            {reply, WindowPid, UpdatedState};
-        WindowPid ->
-            {reply, WindowPid, State}
+            {reply, Window, UpdatedState};
+        Window ->
+            {reply, Window, State}
     end.
 
 find_window(EventType) ->
     case ets:lookup(?TABLE, EventType) of
-        [#window{ pid = WindowPid }] ->
-            WindowPid;
+        [Window] ->
+            Window;
         [] ->
             undefined
     end.

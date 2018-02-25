@@ -27,9 +27,9 @@
 %%-------------------------------------------------------------------
 
 -export(
-   [start/0,
-    report/3,
-    start_link/0
+   [start/1,
+    report/2,
+    start_link/1
    ]).
 
 -ignore_xref(
@@ -58,19 +58,23 @@
 %% Macro Definitions
 %%-------------------------------------------------------------------
 
--define(INACTIVITY_TIMEOUT, (erlang:convert_time_unit(5, seconds, native))).
--define(INACTIVITY_CHECK_PERIOD, (timer:seconds(2))).
+-define(inactivity_timeout(), (timer:seconds(5))). % in milliseconds
+
+-define(TIME_SPAN, 1). % in seconds
+-define(native_time_span(), (erlang:convert_time_unit(?TIME_SPAN, seconds, native))). % in native units
+-define(report_timeout(), (timer:seconds(?TIME_SPAN))). % in milliseconds
 
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
 %%-------------------------------------------------------------------
 
 -record(state, {
+          event_type :: term(),
           window = queue:new() :: queue:queue(event()),
           window_size = 0 :: non_neg_integer(),
-          sample_size = 0 :: non_neg_integer(),
+          sampled_counter = 0 :: non_neg_integer(),
+          timedout_counter = 0 :: non_neg_integer(),
           next_purge_ts :: undefined | timestamp(),
-          time_span = erlang:convert_time_unit(1, seconds, native) :: timestamp(),
           last_active = erlang:monotonic_time() :: timestamp()
          }).
 -type state() :: state().
@@ -83,23 +87,25 @@
 %% API Function Definitions
 %%-------------------------------------------------------------------
 
--spec start() -> {ok, pid()}.
+-spec start(term()) -> {ok, pid()}.
 %% @private
-start() ->
-    deigma_window_sup:start_child([]).
+start(EventType) ->
+    deigma_window_sup:start_child([EventType]).
 
--spec report(pid(), non_neg_integer() | infinity, non_neg_integer()) ->
+-spec report(pid(), non_neg_integer() | infinity) ->
         {accept | drop, float()} |
-        timeout |
+        overloaded |
         stopped.
 %% @private
-report(WindowPid, MaxPerSecond, Timeout) ->
+report(WindowPid, MaxPerSecond) ->
+    Now = erlang:monotonic_time(),
     WindowMonitor = monitor(process, WindowPid),
-    WindowPid ! {report, self(), MaxPerSecond, DeadlineMillis},
+    WindowPid ! {report, self(), Now, MaxPerSecond},
+    Timeout = ?report_timeout(),
     receive
-        {WindowPid, WindowSize, SampleSize, Decision} ->
+        {WindowPid, WindowSize, SampledCounter, Decision} ->
             demonitor(WindowMonitor, [flush]),
-            SampleRate = SampleSize / WindowSize,
+            SampleRate = SampledCounter / WindowSize,
             {Decision, SampleRate};
         {'DOWN', WindowMonitor, process, _Pid, Reason} ->
             case Reason of
@@ -109,13 +115,13 @@ report(WindowPid, MaxPerSecond, Timeout) ->
             end
     after
         Timeout ->
-            timeout
+            overloaded
     end.
 
--spec start_link() -> {ok, pid()}.
+-spec start_link(term()) -> {ok, pid()}.
 %% @private
-start_link() ->
-    proc_lib:start_link(?MODULE, init, [[self()]]).
+start_link(EventType) ->
+    proc_lib:start_link(?MODULE, init, [[self(), EventType]]).
 
 %%-------------------------------------------------------------------
 %% OTP Function Definitions
@@ -123,11 +129,10 @@ start_link() ->
 
 -spec init([pid() | term(), ...]) -> no_return().
 %% @private
-init([Parent]) ->
+init([Parent, EventType]) ->
     Debug = sys:debug_options([]),
     proc_lib:init_ack(Parent, {ok, self()}),
-    %erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
-    State = #state{},
+    State = #state{ event_type = EventType },
     %fprof:apply(fun loop/3, [Parent, Debug, State]).
     loop(Parent, Debug, State).
 
@@ -153,49 +158,51 @@ system_terminate(Reason, _Parent, _Debug, _State) ->
 %% Internal Function Definitions
 %%-------------------------------------------------------------------
 
-loop(Parent, Debug, State) ->
-    PurgeTimeout = next_purge_timeout(State),
+loop(Parent, Debug, State) when State#state.next_purge_ts =/= undefined ->
+    PurgeTimestamp = State#state.next_purge_ts,
+    TimeLeft = max(0, PurgeTimestamp - erlang:monotonic_time()),
+    Timeout = erlang:convert_time_unit(TimeLeft, native, milli_seconds),
     receive
         Msg ->
             handle_message(Msg, Parent, Debug, State)
     after
-        PurgeTimeout ->
+        Timeout ->
             purge(Parent, Debug, State)
+    end;
+loop(Parent, Debug, State) ->
+    Timeout = ?inactivity_timeout(),
+    receive
+        Msg -> handle_message(Msg, Parent, Debug, State)
+    after
+        Timeout ->
+            exit(normal)
     end.
 
-handle_message({report, From, MaxPerSecond, DeadlineMillis}, Parent, Debug, State) ->
-    case erlang:monotonic_time() >= DeadlineMillis of
+handle_message({report, From, Timestamp, MaxPerSecond}, Parent, Debug, State) ->
+    Now = erlang:monotonic_time(),
+    case Now >= (Timestamp + ?native_time_span()) of
         true ->
+            deigma_overload_monitor:report_window_timeout(State#state.event_type),
             loop(Parent, Debug, State);
         false ->
-            handle_report(From, MaxPerSecond, Parent, Debug, State)
+            handle_report(From, MaxPerSecond, Now, Parent, Debug, State)
     end;
-handle_message(check_inactivity, Parent, Debug, State) ->
-    check_inactivity(Parent, Debug, State);
 handle_message({system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State).
 
-next_purge_timeout(State) when State#state.next_purge_ts =:= undefined ->
-    infinity;
-next_purge_timeout(State) ->
-    PurgeTimestamp = State#state.next_purge_ts,
-    TimeLeft = max(0, PurgeTimestamp - erlang:monotonic_time()),
-    erlang:convert_time_unit(TimeLeft, native, milli_seconds).
-
-handle_report(From, MaxPerSecond, Parent, Debug, State) ->
+handle_report(From, MaxPerSecond, Now, Parent, Debug, State) ->
     Window = State#state.window,
     WindowSize = State#state.window_size,
-    SampleSize = State#state.sample_size,
+    SampledCounter = State#state.sampled_counter,
 
-    {UpdatedWindowSize, UpdatedSampleSize, Decision} =
-        handle_sampling(WindowSize, SampleSize, MaxPerSecond),
-    Now = erlang:monotonic_time(),
+    {UpdatedWindowSize, UpdatedSampledCounter, Decision} =
+        handle_sampling(WindowSize, SampledCounter, MaxPerSecond),
     UpdatedWindow = queue:in({Now, Decision}, Window),
-    From ! {self(), UpdatedWindowSize, UpdatedSampleSize, Decision},
+    From ! {self(), UpdatedWindowSize, UpdatedSampledCounter, Decision},
     UpdatedState =
         State#state{ window = UpdatedWindow,
                      window_size = UpdatedWindowSize,
-                     sample_size = UpdatedSampleSize,
+                     sampled_counter = UpdatedSampledCounter,
                      last_active = Now
                    },
     ensure_next_purge(Parent, Debug, UpdatedState).
@@ -204,7 +211,7 @@ ensure_next_purge(Parent, Debug, State) when State#state.next_purge_ts =:= undef
                                              State#state.window_size > 0 ->
     Window = State#state.window,
     {EventTimestamp, _EventDecision} = queue:get(Window),
-    NextPurgeTs = EventTimestamp + State#state.time_span,
+    NextPurgeTs = EventTimestamp + ?native_time_span(),
     UpdatedState = State#state{ next_purge_ts = NextPurgeTs },
     loop(Parent, Debug, UpdatedState);
 ensure_next_purge(Parent, Debug, State) ->
@@ -212,15 +219,15 @@ ensure_next_purge(Parent, Debug, State) ->
 
 purge(Parent, Debug, State) ->
     Window = State#state.window,
-    {{value, {_EventTimestamp, EventDecision}}, UpdatedWindow}  = queue:out(Window),
+    {{value, {_EventTimestamp, EventDecision}}, UpdatedWindow} = queue:out(Window),
     UpdatedWindowSize = State#state.window_size - 1,
     case EventDecision of
         accept ->
-            UpdatedSampleSize = State#state.sample_size - 1,
+            UpdatedSampledCounter = State#state.sampled_counter - 1,
             UpdatedState =
                 State#state{ window = UpdatedWindow,
                              window_size = UpdatedWindowSize,
-                             sample_size = UpdatedSampleSize,
+                             sampled_counter = UpdatedSampledCounter,
                              next_purge_ts = undefined
                            },
             ensure_next_purge(Parent, Debug, UpdatedState);
@@ -233,30 +240,16 @@ purge(Parent, Debug, State) ->
             ensure_next_purge(Parent, Debug, UpdatedState)
     end.
 
-check_inactivity(Parent, Debug, State) ->
-    Now = erlang:monotonic_time(),
-    case Now - State#state.last_active >= ?INACTIVITY_TIMEOUT of
-        true ->
-            exit(normal);
-        false ->
-            %erlang:send_after(?INACTIVITY_CHECK_PERIOD, self(), check_inactivity),
-            loop(Parent, Debug, State)
-    end.
-
-handle_sampling(WindowSize, SampleSize, MaxPerSecond) when SampleSize >= MaxPerSecond ->
-    {WindowSize + 1, SampleSize, drop};
-handle_sampling(WindowSize, SampleSize, _MaxPerSecond) when SampleSize =:= WindowSize ->
-    {WindowSize + 1, SampleSize + 1, accept};
-handle_sampling(WindowSize, SampleSize, _MaxPerSecond) ->
+handle_sampling(WindowSize, SampledCounter, MaxPerSecond) when SampledCounter >= MaxPerSecond ->
+    {WindowSize + 1, SampledCounter, drop};
+handle_sampling(WindowSize, SampledCounter, _MaxPerSecond) when SampledCounter =:= WindowSize ->
+    {WindowSize + 1, SampledCounter + 1, accept};
+handle_sampling(WindowSize, SampledCounter, _MaxPerSecond) ->
     NewWindowSize = WindowSize + 1,
-    TentativeNewSampleSize = SampleSize + 1,
-    case rand:uniform(NewWindowSize) =< TentativeNewSampleSize of
+    TentativeNewSampledCounter = SampledCounter + 1,
+    case rand:uniform(NewWindowSize) =< TentativeNewSampledCounter of
         true ->
-            {NewWindowSize, TentativeNewSampleSize, accept};
+            {NewWindowSize, TentativeNewSampledCounter, accept};
         false ->
-            {NewWindowSize, SampleSize, drop}
+            {NewWindowSize, SampledCounter, drop}
     end.
-
-determine_report_deadline(Timeout) ->
-    Now = erlang:monotonic_time(),
-    Now + erlang:convert_time_unit(Timeout, milli_seconds, native).
