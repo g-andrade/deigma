@@ -72,6 +72,7 @@
           pid :: pid(),
           is_overloaded :: boolean()
          }).
+-type window() :: #window{}.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -117,7 +118,7 @@ init([]) ->
     {ok, #state{}}.
 
 -spec handle_call(term(), {pid(), reference()}, state())
-        -> {reply, pid(), state()} |
+        -> {reply, window(), state()} |
            {stop, unexpected_call, state()}.
 handle_call({find_or_create_window, EventType}, _From, State) ->
     handle_find_or_create_window(EventType, State);
