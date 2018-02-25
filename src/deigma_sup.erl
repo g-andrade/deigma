@@ -49,8 +49,8 @@
 -define(CB_MODULE, ?MODULE).
 -define(SERVER, ?MODULE).
 
--define(CHILD(M), {M, {M,start_link,[]}, temporary, brutal_kill, worker, [M]}).
--define(SUP_CHILD(M), {M, {M,start_link,[]}, temporary, 5000, supervisor, [M]}).
+-define(CHILD(M), {M, {M,start_link,[]}, permanent, brutal_kill, worker, [M]}).
+-define(SUP_CHILD(M), {M, {M,start_link,[]}, permanent, 5000, supervisor, [M]}).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
