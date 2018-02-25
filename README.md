@@ -37,7 +37,7 @@ end.
 
 ##### <span id="Requirements">Requirements</span>
 
-  - Erlang/OTP 17 or higher
+  - Erlang/OTP 18 or higher
   - rebar3
 
 ##### <span id="Documentation">Documentation</span>
