@@ -28,7 +28,7 @@
 
 -export(
    [start_link/0,
-    register/2,
+    register/3,
     whereis/1
    ]).
 
@@ -74,14 +74,14 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
 
--spec register(term(), pid()) -> ok | {error, {already_registered, pid()}}.
-register(Name, Pid) ->
-    gen_server:call(?SERVER, {register, Name, Pid}, infinity).
+-spec register(term(), pid(), term()) -> ok | {error, {already_registered, pid()}}.
+register(Name, Pid, Extra) ->
+    gen_server:call(?SERVER, {register, Name, Pid, Extra}, infinity).
 
--spec whereis(term()) -> pid() | undefined.
+-spec whereis(term()) -> {pid(), term()} | undefined.
 whereis(Name) ->
     case ets:lookup(?TABLE, Name) of
-        [{_, Pid}] -> Pid;
+        [{_, Pid, Extra}] -> {Pid, Extra};
         _ -> undefined
     end.
 
@@ -99,12 +99,12 @@ init([]) ->
         -> {reply, Reply, state()} |
            {stop, unexpected_call, state()}
     when Reply :: ok | {error, {already_registered,pid()}}.
-handle_call({register, Name, Pid}, _From, State) ->
+handle_call({register, Name, Pid, Extra}, _From, State) ->
     case ets:lookup(?TABLE, Name) of
-        [{_, ExistingPid}] ->
+        [{_, ExistingPid, _}] ->
             {reply, {error, {already_registered, ExistingPid}}, State};
         [] ->
-            ets:insert(?TABLE, {Name,Pid}),
+            ets:insert(?TABLE, {Name,Pid,Extra}),
             NewMonitor = monitor(process, Pid),
             Monitors = State#state.monitors,
             UpdatedMonitors = Monitors#{ NewMonitor => Name },

@@ -121,7 +121,7 @@ ask(Category, Opts) ->
 init([Parent, Category]) ->
     Debug = sys:debug_options([]),
     Server = server_name(Category),
-    case deigma_proc_reg:register(Server, self()) of
+    case deigma_proc_reg:register(Server, self(), undefined) of
         ok ->
             proc_lib:init_ack(Parent, {ok, self()}),
             State = #state{ category = Category },
@@ -166,7 +166,7 @@ ensure_server(Category) ->
                 {error, {already_started, ExistingPid}} ->
                     ExistingPid
             end;
-        Pid ->
+        {Pid, _Extra} ->
             Pid
     end.
 
