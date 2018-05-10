@@ -143,7 +143,7 @@ code_change(_OldVsn, #state{} = State, _Extra) ->
 %% ------------------------------------------------------------------
 
 maps_take(Key, Map) ->
-    % OTP 18 doesn't include maps:take/2
+    % OTP 18 doesn't have maps:take/2
     case maps:find(Key, Map) of
         {ok, Value} ->
             UpdatedMap = maps:remove(Key, Map),
