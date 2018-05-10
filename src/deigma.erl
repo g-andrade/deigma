@@ -25,39 +25,30 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [report/1,
-    report/2
+   [ask/1,
+    ask/2
    ]).
 
 -ignore_xref(
-   [report/1,
-    report/2
+   [ask/1,
+    ask/2
    ]).
-
-%% ------------------------------------------------------------------
-%% Macro Definitions
-%% ------------------------------------------------------------------
-
--define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).
--define(is_limit(V), (?is_non_neg_integer((V)) orelse ((V) =:= infinity))).
-
--define(DEFAULT_MAX_PER_SECOND, infinity).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(EventType) -> {Decision, SampleRate} | overloaded
-        when EventType :: term(),
+-spec ask(Category) -> {Decision, SampleRate} | overloaded
+        when Category :: term(),
              Decision :: accept | drop,
              SampleRate :: float().
-report(EventType) ->
-    deigma_window_manager:report(EventType, ?DEFAULT_MAX_PER_SECOND).
+ask(Category) ->
+    ask(Category, []).
 
--spec report(EventType, MaxPerSecond) -> {Decision, SampleRate} | overloaded
-        when EventType :: term(),
-             MaxPerSecond :: non_neg_integer() | infinity,
+-spec ask(Category, Opts) -> {Decision, SampleRate} | overloaded
+        when Category :: term(),
+             Opts :: [deigma_category:opt()],
              Decision :: accept | drop,
              SampleRate :: float().
-report(EventType, MaxPerSecond) when ?is_limit(MaxPerSecond) ->
-    deigma_window_manager:report(EventType, MaxPerSecond).
+ask(Category, Opts) ->
+    deigma_category:ask(Category, Opts).

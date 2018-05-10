@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(deigma_window_sup).
+-module(deigma_category_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
@@ -70,5 +70,5 @@ start_link() ->
 
 init([]) ->
     SupFlags = {simple_one_for_one, 10, 1},
-    Children = [?CHILD(deigma_window)],
+    Children = [?CHILD(deigma_category)],
     {ok, {SupFlags, Children}}.

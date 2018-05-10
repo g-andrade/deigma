@@ -65,10 +65,9 @@ start_link() ->
 %% ------------------------------------------------------------------
 
 init([]) ->
-    SupFlags = {one_for_all, 10, 1},
+    SupFlags = {rest_for_one, 10, 1},
     Children =
-        [?SUP_CHILD(deigma_window_sup),
-         ?CHILD(deigma_overload_monitor),
-         ?CHILD(deigma_window_manager)
+        [?CHILD(deigma_proc_reg),
+         ?SUP_CHILD(deigma_category_sup)
         ],
     {ok, {SupFlags, Children}}.

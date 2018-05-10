@@ -12,14 +12,14 @@
 %%
 %% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 %% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO WORK SHALL THE
 %% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 %% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(deigma_window_manager).
+-module(deigma_proc_reg).
 -behaviour(gen_server).
 
 %% ------------------------------------------------------------------
@@ -27,10 +27,9 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [report/2,
-    mark_as_overloaded/1,
-    unmark_as_overloaded/1,
-    start_link/0
+   [start_link/0,
+    register/2,
+    whereis/1
    ]).
 
 -ignore_xref(
@@ -63,48 +62,28 @@
 %% ------------------------------------------------------------------
 
 -record(state, {
-          monitors = #{} :: #{ reference() => term() }
+          monitors :: #{ reference() => term() }
          }).
 -type state() :: #state{}.
-
--record(window, {
-          event_type :: term(),
-          pid :: pid(),
-          is_overloaded :: boolean()
-         }).
--type window() :: #window{}.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec report(term(), non_neg_integer() | infinity)
-        -> {accept | drop, float()} | overloaded.
-report(EventType, MaxPerSecond) ->
-    Window = find_or_create_window(EventType),
-    case (Window#window.is_overloaded orelse
-         deigma_window:report(Window#window.pid, MaxPerSecond))
-    of
-        true ->
-            overloaded;
-        stopped ->
-            % window went away; try again
-            report(EventType, MaxPerSecond);
-        Result ->
-            Result
-    end.
-
--spec mark_as_overloaded(term()) -> boolean().
-mark_as_overloaded(EventType) ->
-    ets:update_element(?TABLE, EventType, {#window.is_overloaded,true}).
-
--spec unmark_as_overloaded(term()) -> boolean().
-unmark_as_overloaded(EventType) ->
-    ets:update_element(?TABLE, EventType, {#window.is_overloaded,false}).
-
 -spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
+
+-spec register(term(), pid()) -> ok | {error, {already_registered, pid()}}.
+register(Name, Pid) ->
+    gen_server:call(?SERVER, {register, Name, Pid}, infinity).
+
+-spec whereis(term()) -> pid() | undefined.
+whereis(Name) ->
+    case ets:lookup(?TABLE, Name) of
+        [{_, Pid}] -> Pid;
+        _ -> undefined
+    end.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -112,21 +91,30 @@ start_link() ->
 
 -spec init([]) -> {ok, state()}.
 init([]) ->
-    EtsOpts = [named_table, public, {keypos,#window.event_type},
-               {read_concurrency,true}],
+    EtsOpts = [named_table, protected, {read_concurrency,true}],
     _ = ets:new(?TABLE, EtsOpts),
-    {ok, #state{}}.
+    {ok, #state{ monitors = #{} }}.
 
--spec handle_call(term(), {pid(), reference()}, state())
-        -> {reply, window(), state()} |
-           {stop, unexpected_call, state()}.
-handle_call({find_or_create_window, EventType}, _From, State) ->
-    handle_find_or_create_window(EventType, State);
-handle_call(_Request, _From, State) ->
+-spec handle_call(term(), {pid(),reference()}, state())
+        -> {reply, Reply, state()} |
+           {stop, unexpected_call, state()}
+    when Reply :: ok | {error, {already_registered,pid()}}.
+handle_call({register, Name, Pid}, _From, State) ->
+    case ets:lookup(?TABLE, Name) of
+        [{_, ExistingPid}] ->
+            {reply, {error, {already_registered, ExistingPid}}, State};
+        [] ->
+            ets:insert(?TABLE, {Name,Pid}),
+            NewMonitor = monitor(process, Pid),
+            Monitors = State#state.monitors,
+            UpdatedMonitors = Monitors#{ NewMonitor => Name },
+            UpdatedState = State#state{ monitors = UpdatedMonitors },
+            {reply, ok, UpdatedState}
+    end;
+handle_call(_Call, _From, State) ->
     {stop, unexpected_call, State}.
 
--spec handle_cast(term(), state())
-        -> {stop, unexpected_cast, state()}.
+-spec handle_cast(term(), state()) -> {stop, unexpected_cast, state()}.
 handle_cast(_Cast, State) ->
     {stop, unexpected_cast, State}.
 
@@ -135,8 +123,8 @@ handle_cast(_Cast, State) ->
            {stop, unexpected_info, state()}.
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
-    {EventType, UpdatedMonitors} = maps_take(Ref, Monitors),
-    [#window{}] = ets:take(?TABLE, EventType),
+    {Name, UpdatedMonitors} = maps_take(Ref, Monitors),
+    [_] = ets:take(?TABLE, Name),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
@@ -147,56 +135,19 @@ terminate(_Reason, _State) ->
     ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
-code_change(_OldVsn, State, _Extra) when is_record(State, state) ->
+code_change(_OldVsn, #state{} = State, _Extra) ->
     {ok, State}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-find_or_create_window(EventType) ->
-    case find_window(EventType) of
-        undefined ->
-            gen_server:call(?SERVER, {find_or_create_window, EventType}, infinity);
-        Window ->
-            Window
-    end.
-
-handle_find_or_create_window(EventType, State) ->
-    case find_window(EventType) of
-        undefined ->
-            {ok, WindowPid} = deigma_window:start(EventType),
-            WindowMonitor = monitor(process, WindowPid),
-            Window = #window{ event_type = EventType,
-                              pid = WindowPid,
-                              is_overloaded = false
-                            },
-            ets:insert(?TABLE, Window),
-            Monitors = State#state.monitors,
-            UpdatedMonitors = maps:put(WindowMonitor, EventType, Monitors),
-            UpdatedState = State#state{ monitors = UpdatedMonitors },
-            {reply, Window, UpdatedState};
-        Window ->
-            {reply, Window, State}
-    end.
-
-find_window(EventType) ->
-    case ets:lookup(?TABLE, EventType) of
-        [Window] ->
-            Window;
-        [] ->
-            undefined
-    end.
-
--ifdef(POST_OTP_18).
 maps_take(Key, Map) ->
-    maps:take(Key, Map).
--else.
-maps_take(Key, Map) ->
+    % OTP 18 doesn't include maps:take/2
     case maps:find(Key, Map) of
         {ok, Value} ->
-            {Value, maps:remove(Key, Map)};
+            UpdatedMap = maps:remove(Key, Map),
+            {Value, UpdatedMap};
         error ->
             error
     end.
--endif.
