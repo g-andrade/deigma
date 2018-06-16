@@ -109,6 +109,14 @@ ask_1000_1000_test(Config) ->
     run_ask_test(1000, 1000),
     Config.
 
+default_event_fun_test(_Config) ->
+    {ok, _Pid} = deigma:start(default_event_fun_test),
+    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar)),
+    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar, [])),
+    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar, [{max_rate,5000}])),
+    ok = deigma:stop(default_event_fun_test),
+    {error, not_started} = deigma:stop(default_event_fun_test).
+
 custom_event_fun_test(_Config) ->
     {ok, _Pid} = deigma:start(custom_event_fun_test),
     Ref = make_ref(),
