@@ -1,10 +1,1 @@
-{"1.1.0",
-[{<<"sbroker">>,{pkg,<<"sbroker">>,<<"1.0.0">>},1},
- {<<"workforce">>,
-  {git,"https://github.com/g-andrade/workforce.git",
-       {ref,"62e7a7d5a4b16459b60b7eb4b055bf1a20c2287c"}},
-  0}]}.
-[
-{pkg_hash,[
- {<<"sbroker">>, <<"28FF1B5E58887C5098539F236307B36FE1D3EDAA2ACFF9D6A3D17C2DCAFEBBD0">>}]}
-].
+[].

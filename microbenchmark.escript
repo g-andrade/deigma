@@ -3,15 +3,14 @@
 
 -export([main/1]).
 
--define(NR_OF_WORKERS, 1000).
+-define(NR_OF_WORKERS, 100).
 
 main([]) ->
     Category = microbenchmarking,
     NrOfWorkers = ?NR_OF_WORKERS,
-    NrOfCalls = 500000,
+    NrOfCalls = 2000000,
     {ok, _} = application:ensure_all_started(deigma),
     {ok, _} = application:ensure_all_started(sasl),
-    {ok, _Pid} = deigma:start(wowow),
     do_it(Category, NrOfWorkers, NrOfCalls).
 
 do_it(Category, NrOfWorkers, NrOfCalls) ->
@@ -65,20 +64,11 @@ run_worker_loop(_Category, _Nr, Parent, NrOfCalls, StartTs,
     Parent ! {worker_result, self(), AdjustedCountPerResult};
 run_worker_loop(Category, Nr, Parent, NrOfCalls, StartTs, Count, CountPerResult) ->
     ActorId = abs(erlang:monotonic_time()) rem ?NR_OF_WORKERS,
-    {Result, SampleRate} = deigma:ask(wowow, yes, fun event_fun/2),
+    {Result, SampleRate} = deigma:ask(wowow),
     %_ = (Count rem 10000 =:= 10) andalso io:format("Stats (~p): ~p~n", [Nr, Stats]),
     UpdatedCountPerResult = maps_increment(Result, +1, CountPerResult),
     run_worker_loop(Category, Nr, Parent, NrOfCalls, StartTs, Count + 1,
                     UpdatedCountPerResult).
-
-event_fun(Accepted, Rejected) ->
-    NewTotal = Accepted + Rejected + 1,
-    if Accepted >= 100 ->
-           {reject, {dropped, Accepted / NewTotal}};
-       true ->
-           NewAccepted = Accepted + 1,
-           {accept, {accepted, NewAccepted / NewTotal}}
-    end.
 
 maps_increment(Key, Incr, Map) ->
     maps:update_with(

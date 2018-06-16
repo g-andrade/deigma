@@ -27,8 +27,7 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/0,
-    start_child/1
+   [start_link/0
    ]).
 
 -ignore_xref(
@@ -50,7 +49,8 @@
 -define(CB_MODULE, ?MODULE).
 -define(SERVER, ?MODULE).
 
--define(CHILD(M), {M, {M,start_link,[]}, temporary, brutal_kill, worker, [M]}).
+-define(CHILD(M), {M, {M,start_link,[]}, permanent, brutal_kill, worker, [M]}).
+-define(SUP_CHILD(M), {M, {M,start_link,[]}, permanent, 5000, supervisor, [M]}).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -60,20 +60,14 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?CB_MODULE, []).
 
--spec start_child(list()) -> {ok, pid()}.
-start_child(Args) ->
-    supervisor:start_child(?SERVER, Args).
-
 %% ------------------------------------------------------------------
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
 init([]) ->
-    SupFlags = #{ strategy => simple_one_for_one },
-    ChildSpec = 
-        #{ id => deigma,
-           start => {deigma, start_link, []},
-           restart => temporary,
-           type => supervisor
-         },
-    {ok, {SupFlags, [ChildSpec]}}.
+    SupFlags = {rest_for_one, 10, 1},
+    Children =
+        [?CHILD(deigma_proc_reg),
+         ?SUP_CHILD(deigma_category_sup)
+        ],
+    {ok, {SupFlags, Children}}.
