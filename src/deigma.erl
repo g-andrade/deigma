@@ -95,12 +95,13 @@ stop(Category) ->
              Decision :: accept | drop,
              SampleRate :: float().
 ask(Category, EventType) ->
-    ask(Category, EventType, fun default_ask_fun/2).
+    ask(Category, EventType, fun default_ask_fun/3).
 
--spec ask(Category, EventType, EventFun | Opts) -> EventFunResult
+-spec ask(Category, EventType, EventFun | Opts) -> {Decision, SampleRate} | EventFunResult
         when Category :: atom(),
              EventType :: term(),
-             EventFun :: fun ((Decision, SampleRate) -> EventFunResult),
+             EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
+             Timestamp :: integer(),
              SampleRate :: float(),
              Decision :: accept | drop,
              EventFunResult :: term(),
@@ -108,12 +109,13 @@ ask(Category, EventType) ->
 ask(Category, EventType, EventFun) when is_function(EventFun) ->
     ask(Category, EventType, EventFun, []);
 ask(Category, EventType, Opts) ->
-    ask(Category, EventType, fun default_ask_fun/2, Opts).
+    ask(Category, EventType, fun default_ask_fun/3, Opts).
 
 -spec ask(Category, EventType, EventFun, Opts) -> EventFunResult
         when Category :: atom(),
              EventType :: term(),
-             EventFun :: fun ((Decision, SampleRate) -> EventFunResult),
+             EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
+             Timestamp :: integer(),
              SampleRate :: float(),
              Decision :: accept | drop,
              EventFunResult :: term(),
@@ -144,5 +146,5 @@ init([Category]) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-default_ask_fun(Decision, SampleRate) ->
+default_ask_fun(_Timestamp, Decision, SampleRate) ->
     {Decision, SampleRate}.

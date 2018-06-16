@@ -128,7 +128,6 @@ init({Parent, [Category, EventType]}) ->
     case deigma_proc_reg:register(Category, Server, self()) of
         ok ->
             proc_lib:init_ack(Parent, {ok, self()}),
-            io:format("started window at ~p~n", [self()]),
             State = #state{ category = Category, event_type = EventType },
             loop(Parent, Debug, State);
         {error, {already_registered, Pid}} ->
@@ -187,29 +186,29 @@ start(Category, EventType) ->
 loop(Parent, Debug, State) ->
     receive
         Msg ->
-            UpdatedState = purge_expired(State),
-            handle_message(Msg, Parent, Debug, UpdatedState)
+            Now = erlang:monotonic_time(),
+            UpdatedState = purge_expired(Now, State),
+            handle_message(Now, Msg, Parent, Debug, UpdatedState)
     end.
 
-handle_message({system, From, Request}, Parent, Debug, State) ->
+handle_message(_Now, {system, From, Request}, Parent, Debug, State) ->
     sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State);
-handle_message(Msg, Parent, Debug, State) ->
+handle_message(Now, Msg, Parent, Debug, State) ->
     UpdatedDebug = sys:handle_debug(Debug, fun ?MODULE:write_debug/3, ?MODULE, {in, Msg}),
-    UpdatedState = handle_nonsystem_msg(Msg, State),
+    UpdatedState = handle_nonsystem_msg(Now, Msg, State),
     loop(Parent, UpdatedDebug, UpdatedState).
 
-handle_nonsystem_msg({ask, From, Tag, EventFun, MaxRate}, State) ->
+handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
     Window = State#state.window,
     WindowSize = State#state.window_size,
     SampledCounter = State#state.sampled_counter,
 
-    Now = erlang:monotonic_time(),
     {UpdatedWindowSize, UpdatedSampledCounter, Decision} =
         handle_sampling(WindowSize, SampledCounter, MaxRate),
     UpdatedWindow = queue:in({Now, Decision}, Window),
 
     SampleRate = UpdatedSampledCounter / UpdatedWindowSize,
-    _ = try EventFun(Decision, SampleRate) of
+    _ = try EventFun(Now, Decision, SampleRate) of
             Result ->
                 From ! {Tag, {result, Result}}
         catch
@@ -223,21 +222,20 @@ handle_nonsystem_msg({ask, From, Tag, EventFun, MaxRate}, State) ->
                  sampled_counter = UpdatedSampledCounter
                }.
 
-purge_expired(State) ->
+purge_expired(Now, State) ->
     Window = State#state.window,
     WindowSize = State#state.window_size,
     SampledCounter = State#state.sampled_counter,
-    Timespan = ?native_time_span(),
+    TimeFloor = Now - ?native_time_span(),
     {UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter} =
-        purge_expired(Window, WindowSize, SampledCounter, Timespan),
+        purge_expired(TimeFloor, Window, WindowSize, SampledCounter),
     State#state{
       window = UpdatedWindow,
       window_size = UpdatedWindowSize,
       sampled_counter = UpdatedSampledCounter
      }.
 
-purge_expired(Window, WindowSize, SampledCounter, Timespan) ->
-    TimeFloor = erlang:monotonic_time() - Timespan,
+purge_expired(TimeFloor, Window, WindowSize, SampledCounter) ->
     case queue:peek(Window) of
         {value, {EventTimestamp, EventDecision}} when EventTimestamp < TimeFloor ->
             UpdatedWindow = queue:drop(Window),
@@ -246,12 +244,10 @@ purge_expired(Window, WindowSize, SampledCounter, Timespan) ->
                 accept ->
                     UpdatedSampledCounter = SampledCounter - 1,
                     purge_expired(
-                      UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter,
-                      Timespan);
+                      TimeFloor, UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter);
                 drop ->
                     purge_expired(
-                      UpdatedWindow, UpdatedWindowSize, SampledCounter,
-                      Timespan)
+                      TimeFloor, UpdatedWindow, UpdatedWindowSize, SampledCounter)
             end;
         _ ->
             {Window, WindowSize, SampledCounter}
