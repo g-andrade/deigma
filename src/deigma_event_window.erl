@@ -18,7 +18,7 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--module(deigma_category).
+-module(deigma_event_window).
 
 % based on https://gist.github.com/marcelog/97708058cd17f86326c82970a7f81d40#file-simpleproc-erl
 
@@ -27,12 +27,12 @@
 %%-------------------------------------------------------------------
 
 -export(
-   [start_link/1,
-    ask/2
+   [start_link/2,
+    ask/4
    ]).
 
 -ignore_xref(
-   [start_link/1
+   [start_link/2
    ]).
 
 %%-------------------------------------------------------------------
@@ -43,14 +43,16 @@
    [init/1,
     system_code_change/4,
     system_continue/3,
-    system_terminate/4
+    system_terminate/4,
+    write_debug/3
    ]).
 
 -ignore_xref(
    [init/1,
     system_code_change/4,
     system_continue/3,
-    system_terminate/4
+    system_terminate/4,
+    write_debug/3
    ]).
 
 %%-------------------------------------------------------------------
@@ -65,7 +67,8 @@
 %%-------------------------------------------------------------------
 
 -record(state, {
-          category :: term(),
+          category :: atom(),
+          event_type :: term(),
           window = queue:new() :: queue:queue(event()),
           window_size = 0 :: non_neg_integer(),
           sampled_counter = 0 :: non_neg_integer()
@@ -84,30 +87,31 @@
 %% API Function Definitions
 %%-------------------------------------------------------------------
 
--spec start_link(term()) -> {ok, pid()} | {error, {already_started, pid()}}.
+-spec start_link(atom(), term()) -> {ok, pid()} | {error, {already_started, pid()}}.
 %% @private
-start_link(Category) ->
-    proc_lib:start_link(?MODULE, init, [[self(), Category]]).
+start_link(Category, EventType) ->
+    proc_lib:start_link(?MODULE, init, [{self(), [Category, EventType]}]).
 
--spec ask(term(), opt()) ->
-        {accept | drop, float()} |
-        overloaded |
-        stopped.
+-spec ask(atom(), term(), fun ((decision(), float()) -> term()), [opt()]) -> term() | no_return().
 %% @private
-ask(Category, Opts) ->
-    MaxRate = proplists:get_value(max_rate, Opts),
-    Tag = make_ref(),
-    Pid = ensure_server(Category),
-    Pid ! {ask, self(), Tag, MaxRate},
+ask(Category, EventType, EventFun, Opts) ->
+    MaxRate = proplists:get_value(max_rate, Opts, infinity),
+    Pid = lookup_or_start(Category, EventType),
     Mon = monitor(process, Pid),
+    Tag = Mon,
+    Pid ! {ask, self(), Tag, EventFun, MaxRate},
     receive
         {Tag, Reply} ->
-            {UpdatedWindowSize, UpdatedSampledCounter, Decision} = Reply,
-            SampleRate = UpdatedSampledCounter / UpdatedWindowSize,
-            {Decision, SampleRate};
+            demonitor(Mon, [flush]),
+            case Reply of
+                {result, Result} ->
+                    Result;
+                {exception, Class, Reason, Stacktrace} ->
+                    erlang:raise(Class, Reason, Stacktrace)
+            end;
         {'DOWN', Mon, process, _Pid, Reason} when Reason =:= noproc; Reason =:= normal ->
             % inactive process stopped; ask again
-            ask(Category, Opts);
+            ask(Category, EventType, EventFun, Opts);
         {'DOWN', Mon, process, _Pid, Reason} ->
             error({category_stopped, Reason})
     end.
@@ -116,15 +120,16 @@ ask(Category, Opts) ->
 %% OTP Function Definitions
 %%-------------------------------------------------------------------
 
--spec init([pid() | term(), ...]) -> no_return().
+-spec init({pid(), [atom() | term(), ...]}) -> no_return().
 %% @private
-init([Parent, Category]) ->
+init({Parent, [Category, EventType]}) ->
     Debug = sys:debug_options([]),
-    Server = server_name(Category),
-    case deigma_proc_reg:register(Server, self(), undefined) of
+    Server = registered_name(EventType),
+    case deigma_proc_reg:register(Category, Server, self()) of
         ok ->
             proc_lib:init_ack(Parent, {ok, self()}),
-            State = #state{ category = Category },
+            io:format("started window at ~p~n", [self()]),
+            State = #state{ category = Category, event_type = EventType },
             loop(Parent, Debug, State);
         {error, {already_registered, Pid}} ->
             proc_lib:init_ack(Parent, {error, {already_started, Pid}}),
@@ -149,34 +154,41 @@ system_terminate(Reason, _Parent, _Debug, _State) ->
     % http://www.erlang.org/doc/man/sys.html#Mod:system_terminate-4
     exit(Reason).
 
+-spec write_debug(io:device(), term(), term()) -> ok.
+%% @private
+write_debug(Dev, Event, Name) ->
+    % called by sys:handle_debug().
+    io:format(Dev, "~p event = ~p~n", [Name, Event]).
+
 %%-------------------------------------------------------------------
 %% Internal Function Definitions
 %%-------------------------------------------------------------------
 
-server_name(Category) ->
-    {?MODULE, Category}.
+registered_name(EventType) ->
+    {?MODULE, EventType}.
 
-ensure_server(Category) ->
-    Server = server_name(Category),
-    case deigma_proc_reg:whereis(Server) of
+lookup_or_start(Category, EventType) ->
+    Server = registered_name(EventType),
+    case deigma_proc_reg:whereis(Category, Server) of
         undefined ->
-            case start_server(Category) of
+            case start(Category, EventType) of
                 {ok, Pid} ->
                     Pid;
                 {error, {already_started, ExistingPid}} ->
                     ExistingPid
             end;
-        {Pid, _Extra} ->
+        Pid ->
             Pid
     end.
 
-start_server(Category) ->
-    deigma_category_sup:start_child([Category]).
+start(Category, EventType) ->
+    deigma_event_window_sup:start_child(Category, [EventType]).
 
 loop(Parent, Debug, State) ->
-    UpdatedState = purge_expired(State),
     receive
-        Msg -> handle_message(Msg, Parent, Debug, UpdatedState)
+        Msg ->
+            UpdatedState = purge_expired(State),
+            handle_message(Msg, Parent, Debug, UpdatedState)
     end.
 
 handle_message({system, From, Request}, Parent, Debug, State) ->
@@ -186,7 +198,7 @@ handle_message(Msg, Parent, Debug, State) ->
     UpdatedState = handle_nonsystem_msg(Msg, State),
     loop(Parent, UpdatedDebug, UpdatedState).
 
-handle_nonsystem_msg({ask, From, Tag, MaxRate}, State) ->
+handle_nonsystem_msg({ask, From, Tag, EventFun, MaxRate}, State) ->
     Window = State#state.window,
     WindowSize = State#state.window_size,
     SampledCounter = State#state.sampled_counter,
@@ -195,52 +207,60 @@ handle_nonsystem_msg({ask, From, Tag, MaxRate}, State) ->
     {UpdatedWindowSize, UpdatedSampledCounter, Decision} =
         handle_sampling(WindowSize, SampledCounter, MaxRate),
     UpdatedWindow = queue:in({Now, Decision}, Window),
-    From ! {Tag, {UpdatedWindowSize, UpdatedSampledCounter, Decision}},
+
+    SampleRate = UpdatedSampledCounter / UpdatedWindowSize,
+    _ = try EventFun(Decision, SampleRate) of
+            Result ->
+                From ! {Tag, {result, Result}}
+        catch
+            Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+                From ! {Tag, {exception, Class, Reason, Stacktrace}}
+        end,
+
     State#state{ window = UpdatedWindow,
                  window_size = UpdatedWindowSize,
                  sampled_counter = UpdatedSampledCounter
                }.
 
 purge_expired(State) ->
-    TimeFloor = erlang:monotonic_time() - ?native_time_span(),
-    case queue:peek(State#state.window) of
-        {value, {EventTimestamp, EventDecision}} when EventTimestamp =< TimeFloor ->
-            UpdatedWindow = queue:drop(State#state.window),
-            UpdatedWindowSize = State#state.window_size - 1,
+    Window = State#state.window,
+    WindowSize = State#state.window_size,
+    SampledCounter = State#state.sampled_counter,
+    Timespan = ?native_time_span(),
+    {UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter} =
+        purge_expired(Window, WindowSize, SampledCounter, Timespan),
+    State#state{
+      window = UpdatedWindow,
+      window_size = UpdatedWindowSize,
+      sampled_counter = UpdatedSampledCounter
+     }.
+
+purge_expired(Window, WindowSize, SampledCounter, Timespan) ->
+    TimeFloor = erlang:monotonic_time() - Timespan,
+    case queue:peek(Window) of
+        {value, {EventTimestamp, EventDecision}} when EventTimestamp < TimeFloor ->
+            UpdatedWindow = queue:drop(Window),
+            UpdatedWindowSize = WindowSize - 1,
             case EventDecision of
                 accept ->
-                    UpdatedSampledCounter = State#state.sampled_counter - 1,
-                    UpdatedState =
-                        State#state{ window = UpdatedWindow,
-                                     window_size = UpdatedWindowSize,
-                                     sampled_counter = UpdatedSampledCounter
-                                   },
-                    purge_expired(UpdatedState);
+                    UpdatedSampledCounter = SampledCounter - 1,
+                    purge_expired(
+                      UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter,
+                      Timespan);
                 drop ->
-                    UpdatedWindow = queue:drop(State#state.window),
-                    UpdatedState =
-                        State#state{ window = UpdatedWindow,
-                                     window_size = UpdatedWindowSize
-                                   },
-                    purge_expired(UpdatedState)
+                    purge_expired(
+                      UpdatedWindow, UpdatedWindowSize, SampledCounter,
+                      Timespan)
             end;
         _ ->
-            State
+            {Window, WindowSize, SampledCounter}
     end.
 
 handle_sampling(WindowSize, SampledCounter, MaxRate) when SampledCounter >= MaxRate ->
     {WindowSize + 1, SampledCounter, drop};
-handle_sampling(WindowSize, SampledCounter, _MaxRate) when SampledCounter =:= WindowSize ->
-    {WindowSize + 1, SampledCounter + 1, accept};
 handle_sampling(WindowSize, SampledCounter, _MaxRate) ->
-    NewWindowSize = WindowSize + 1,
-    TentativeNewSampledCounter = SampledCounter + 1,
-    case rand:uniform(NewWindowSize) =< TentativeNewSampledCounter of
-        true ->
-            {NewWindowSize, TentativeNewSampledCounter, accept};
-        false ->
-            {NewWindowSize, SampledCounter, drop}
-    end.
+    {WindowSize + 1, SampledCounter + 1, accept}.
 
 %inactivity_timeout() ->
 %    InSeconds = max(0, ?inactivity_timeout_mean() + (math:sqrt(?inactivity_timeout_stddev()) * rand:normal())),

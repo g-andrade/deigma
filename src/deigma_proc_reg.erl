@@ -27,13 +27,13 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/0,
+   [start_link/1,
     register/3,
-    whereis/1
+    whereis/2
    ]).
 
 -ignore_xref(
-   [start_link/0
+   [start_link/1
    ]).
 
 %% ------------------------------------------------------------------
@@ -50,18 +50,12 @@
    ]).
 
 %% ------------------------------------------------------------------
-%% Macro Definitions
-%% ------------------------------------------------------------------
-
--define(CB_MODULE, ?MODULE).
--define(SERVER, ?MODULE).
--define(TABLE, ?MODULE).
-
-%% ------------------------------------------------------------------
 %% Record and Type Definitions
 %% ------------------------------------------------------------------
 
 -record(state, {
+          category :: atom(),
+          table :: ets:tab(),
           monitors :: #{ reference() => term() }
          }).
 -type state() :: #state{}.
@@ -70,18 +64,21 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_link() -> {ok, pid()}.
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
+-spec start_link(atom()) -> {ok, pid()}.
+start_link(Category) ->
+    Server = deigma_util:proc_name(?MODULE, Category),
+    gen_server:start_link({local,Server}, ?MODULE, [Category], []).
 
--spec register(term(), pid(), term()) -> ok | {error, {already_registered, pid()}}.
-register(Name, Pid, Extra) ->
-    gen_server:call(?SERVER, {register, Name, Pid, Extra}, infinity).
+-spec register(atom(), term(), pid()) -> ok | {error, {already_registered, pid()}}.
+register(Category, Name, Pid) ->
+    Server = deigma_util:proc_name(?MODULE, Category),
+    gen_server:call(Server, {register, Name, Pid}, infinity).
 
--spec whereis(term()) -> {pid(), term()} | undefined.
-whereis(Name) ->
-    case ets:lookup(?TABLE, Name) of
-        [{_, Pid, Extra}] -> {Pid, Extra};
+-spec whereis(atom(), term()) -> pid() | undefined.
+whereis(Category, Name) ->
+    Table = table_name(Category),
+    case ets:lookup(Table, Name) of
+        [{_, Pid}] -> Pid;
         _ -> undefined
     end.
 
@@ -89,22 +86,24 @@ whereis(Name) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([]) -> {ok, state()}.
-init([]) ->
-    EtsOpts = [named_table, protected, {read_concurrency,true}],
-    _ = ets:new(?TABLE, EtsOpts),
-    {ok, #state{ monitors = #{} }}.
+-spec init([atom(), ...]) -> {ok, state()}.
+init([Category]) ->
+    Table = table_name(Category),
+    TableOpts = [named_table, protected, {read_concurrency,true}],
+    _ = ets:new(Table, TableOpts),
+    {ok, #state{ category = Category, table = Table, monitors = #{} }}.
 
 -spec handle_call(term(), {pid(),reference()}, state())
         -> {reply, Reply, state()} |
            {stop, unexpected_call, state()}
     when Reply :: ok | {error, {already_registered,pid()}}.
-handle_call({register, Name, Pid, Extra}, _From, State) ->
-    case ets:lookup(?TABLE, Name) of
-        [{_, ExistingPid, _}] ->
+handle_call({register, Name, Pid}, _From, State) ->
+    Table = State#state.table,
+    case ets:lookup(Table, Name) of
+        [{_, ExistingPid}] ->
             {reply, {error, {already_registered, ExistingPid}}, State};
         [] ->
-            ets:insert(?TABLE, {Name,Pid,Extra}),
+            ets:insert(Table, {Name,Pid}),
             NewMonitor = monitor(process, Pid),
             Monitors = State#state.monitors,
             UpdatedMonitors = Monitors#{ NewMonitor => Name },
@@ -124,7 +123,7 @@ handle_cast(_Cast, State) ->
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
     {Name, UpdatedMonitors} = maps_take(Ref, Monitors),
-    [_] = ets:take(?TABLE, Name),
+    [_] = ets:take(State#state.table, Name),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
@@ -142,8 +141,11 @@ code_change(_OldVsn, #state{} = State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+table_name(Category) ->
+    deigma_util:proc_name(?MODULE, Category).
+
 maps_take(Key, Map) ->
-    % OTP 18 doesn't have maps:take/2
+    % OTP 18 doesn't include maps:take/2
     case maps:find(Key, Map) of
         {ok, Value} ->
             UpdatedMap = maps:remove(Key, Map),

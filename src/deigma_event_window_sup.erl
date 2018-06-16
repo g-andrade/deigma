@@ -19,59 +19,50 @@
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(deigma_sup).
+-module(deigma_event_window_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export(
-   [start_link/0,
-    start_child/1
-   ]).
+-export([start_link/1]).
+-export([start_child/2]).
 
--ignore_xref(
-   [start_link/0
-   ]).
+-ignore_xref([start_link/1]).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Exports
 %% ------------------------------------------------------------------
 
--export(
-   [init/1
-   ]).
-
-%% ------------------------------------------------------------------
-%% Macro Definitions
-%% ------------------------------------------------------------------
-
--define(SERVER, ?MODULE).
+-export([init/1]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_link() -> {ok, pid()}.
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+-spec start_link(atom()) -> {ok, pid()} | {error, term()}.
+start_link(Category) ->
+    Server = deigma_util:proc_name(?MODULE, Category),
+    supervisor:start_link({local,Server}, ?MODULE, [Category]).
 
--spec start_child(list()) -> {ok, pid()}.
-start_child(Args) ->
-    supervisor:start_child(?SERVER, Args).
+-spec start_child(atom(), list()) -> {ok, pid()} | {error, term()}.
+start_child(Category, Args) ->
+    Server = deigma_util:proc_name(?MODULE, Category),
+    supervisor:start_child(Server, Args).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
-init([]) ->
+-spec init([atom(), ...])
+        -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
+init([Category]) ->
     SupFlags = #{ strategy => simple_one_for_one },
     ChildSpecs =
-        [#{ id => deigma,
-            start => {deigma, start_link, []},
-            restart => temporary,
-            type => supervisor
-          }],
+        [#{ id => event_window,
+            start => {deigma_event_window, start_link, [Category]},
+            restart => temporary
+          }
+        ],
     {ok, {SupFlags, ChildSpecs}}.
