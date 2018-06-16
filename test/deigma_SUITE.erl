@@ -61,10 +61,6 @@ end_per_testcase(_TestCase, Config) ->
 %% Definition
 %% ------------------------------------------------------------------
 
-ask_1_1_test(Config) ->
-    run_ask_test(1, 1),
-    Config.
-
 ask_10_1_test(Config) ->
     run_ask_test(10, 1),
     Config.
@@ -75,10 +71,6 @@ ask_100_1_test(Config) ->
 
 ask_1000_1_test(Config) ->
     run_ask_test(1000, 1),
-    Config.
-
-ask_1_10_test(Config) ->
-    run_ask_test(1, 10),
     Config.
 
 ask_10_10_test(Config) ->
@@ -93,10 +85,6 @@ ask_1000_10_test(Config) ->
     run_ask_test(1000, 10),
     Config.
 
-ask_1_100_test(Config) ->
-    run_ask_test(1, 100),
-    Config.
-
 ask_10_100_test(Config) ->
     run_ask_test(10, 100),
     Config.
@@ -107,10 +95,6 @@ ask_100_100_test(Config) ->
 
 ask_1000_100_test(Config) ->
     run_ask_test(1000, 100),
-    Config.
-
-ask_1_1000_test(Config) ->
-    run_ask_test(1, 1000),
     Config.
 
 ask_10_1000_test(Config) ->
@@ -164,15 +148,21 @@ run_ask_test(NrOfEventTypes, MaxRate) ->
     ok = deigma:stop(Category).
 
 run_ask_test_recur(Category, NrOfEventTypes, MaxRate, Acc) ->
+    Timeout = rand:uniform(2) - 1,
     receive
         test_over ->
             check_ask_test_results(MaxRate, Acc)
     after
-        0 ->
+        Timeout ->
             EventType = rand:uniform(NrOfEventTypes),
-            Now = erlang:monotonic_time(millisecond),
-            {Decision, SampleRate} = deigma:ask(Category, EventType),
-            UpdatedAcc = [{Now, EventType, Decision, SampleRate} | Acc],
+            {Ts, Decision, SampleRate} =
+                deigma:ask(
+                  Category, EventType,
+                  fun (Ts, Decision, SampleRate) ->
+                          {Ts, Decision, SampleRate}
+                  end,
+                  [{max_rate, MaxRate}]),
+            UpdatedAcc = [{Ts, EventType, Decision, SampleRate} | Acc],
             run_ask_test_recur(Category, NrOfEventTypes, MaxRate, UpdatedAcc)
     end.
 
@@ -199,6 +189,7 @@ check_ask_test_decisions(MaxRate, Events) ->
     check_ask_test_decisions(MaxRate, Events, [], 0, 0).
 
 check_ask_test_decisions(_MaxRate, [], _Acc, RightDecisions, WrongDecisions) ->
+    ct:pal("RightDecisions ~p, WrongDecisions ~p", [RightDecisions, WrongDecisions]),
     ?assert(WrongDecisions / (RightDecisions + WrongDecisions) < 0.01);
 check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDecisions) ->
     {Ts, Decision, _SampleRate} = Event,
@@ -221,10 +212,10 @@ check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDec
     end.
 
 relevant_history(Ts, Prev) ->
-    TsFloor = Ts - erlang:monotonic_time(millisecond),
+    TsFloor = Ts - erlang:convert_time_unit(1, second, native),
     lists:takewhile(
       fun ({EntryTs, _Decision, _SampleRate}) ->
-              EntryTs > TsFloor
+              EntryTs >= TsFloor
       end,
       Prev).
 
@@ -242,40 +233,36 @@ count_history_decisions(Prev) ->
       Prev).
 
 check_ask_test_rates(Events) ->
-    check_ask_test_rates(Events, [], 0, 0).
+    check_ask_test_rates(Events, []).
 
-check_ask_test_rates([], _Prev, GoodSampleRates, BadSampleRates) ->
-    ?assert(BadSampleRates / (GoodSampleRates + BadSampleRates) < 0.01);
-check_ask_test_rates([Event | Next], Prev, GoodSampleRates, BadSampleRates) ->
+check_ask_test_rates([], _Prev) ->
+    ok;
+check_ask_test_rates([Event | Next], Prev) ->
     {Ts, Decision, SampleRate} = Event,
     ?assert(SampleRate >= 0 andalso SampleRate =< 1),
     RelevantPrev = relevant_history(Ts, Prev),
     CountPerDecision = count_history_decisions(RelevantPrev),
     PrevAcceptances = maps:get(accept, CountPerDecision),
     PrevDrops = maps:get(drop, CountPerDecision),
+    ct:pal("PrevAcceptances ~p, PrevDrops ~p", [PrevAcceptances, PrevDrops]),
     Total = PrevAcceptances + PrevDrops + 1,
     RealSampleRate =
         if Decision =:= accept ->
                (PrevAcceptances + 1) / Total;
-           Decision =:= reject ->
+           Decision =:= drop ->
                (PrevAcceptances / Total)
         end,
-
-    case RealSampleRate =:= SampleRate of
-        true ->
-            check_ask_test_rates(Next, Prev, GoodSampleRates + 1, BadSampleRates);
-        false ->
-            check_ask_test_rates(Next, Prev, GoodSampleRates, BadSampleRates + 1)
-    end.
+    ?assertEqual(RealSampleRate, SampleRate),
+    check_ask_test_rates(Next, [Event | Prev]).
 
 event_fun({value, Value}) ->
-    fun (Decision, SampleRate) ->
+    fun (_Timestamp, Decision, SampleRate) ->
             ?assert(lists:member(Decision, [accept, drop])),
             ?assert(SampleRate >= 0 andalso SampleRate =< 1),
             Value
     end;
 event_fun({exception, Class, Reason}) ->
-    fun (Decision, SampleRate) ->
+    fun (_Timestamp, Decision, SampleRate) ->
             ?assert(lists:member(Decision, [accept, drop])),
             ?assert(SampleRate >= 0 andalso SampleRate =< 1),
             erlang:raise(Class, Reason, [])
