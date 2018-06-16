@@ -19,56 +19,21 @@
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(deigma_category_sup).
--behaviour(supervisor).
+-module(deigma_util).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export(
-   [start_child/1,
-    start_link/0
-   ]).
-
--ignore_xref(
-   [start_link/0
-   ]).
-
-%% ------------------------------------------------------------------
-%% supervisor Function Exports
-%% ------------------------------------------------------------------
-
--export(
-   [init/1
-   ]).
-
-%% ------------------------------------------------------------------
-%% Macro Definitions
-%% ------------------------------------------------------------------
-
--define(CB_MODULE, ?MODULE).
--define(SERVER, ?MODULE).
-
--define(CHILD(M), {M, {M,start_link,[]}, temporary, brutal_kill, worker, [M]}).
+-export([proc_name/2]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_child(list()) -> {ok, pid()}.
-start_child(Args) ->
-    supervisor:start_child(?SERVER, Args).
-
--spec start_link() -> {ok, pid()}.
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?CB_MODULE, []).
-
-%% ------------------------------------------------------------------
-%% supervisor Function Definitions
-%% ------------------------------------------------------------------
-
-init([]) ->
-    SupFlags = {simple_one_for_one, 10, 1},
-    Children = [?CHILD(deigma_category)],
-    {ok, {SupFlags, Children}}.
+-spec proc_name(module(), atom()) -> atom().
+proc_name(Module, PoolId) ->
+    list_to_atom(
+      atom_to_list(Module)
+      ++ "."
+      ++ atom_to_list(PoolId)).

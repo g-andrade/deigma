@@ -19,36 +19,101 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(deigma).
+-behaviour(supervisor).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
 -export(
-   [ask/1,
-    ask/2
+   [start_link/1,
+    child_spec/1,
+    start/1,
+    stop/1,
+    ask/2,
+    ask/3,
+    ask/4,
+    get_counters/1
    ]).
 
--ignore_xref(
-   [ask/1,
-    ask/2
+%% ------------------------------------------------------------------
+%% supervisor Function Exports
+%% ------------------------------------------------------------------
+
+-export(
+   [init/1
    ]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec ask(Category) -> {Decision, SampleRate} | overloaded
-        when Category :: term(),
-             Decision :: accept | drop,
-             SampleRate :: float().
-ask(Category) ->
-    ask(Category, []).
+start_link(Category) ->
+    Server = deigma_util:proc_name(?MODULE, Category),
+    supervisor:start_link({local,Server}, ?MODULE, [Category]).
 
--spec ask(Category, Opts) -> {Decision, SampleRate} | overloaded
-        when Category :: term(),
-             Opts :: [deigma_category:opt()],
-             Decision :: accept | drop,
-             SampleRate :: float().
-ask(Category, Opts) ->
-    deigma_category:ask(Category, Opts).
+child_spec(Category) ->
+    #{ id => {deigma, Category},
+       start => {?MODULE, start_link, [Category]},
+       type => supervisor
+     }.
+
+start(Category) ->
+    deigma_sup:start_child([Category]).
+
+stop(Category) ->
+    Server = workforce_util:proc_name(?MODULE, Category),
+    try gen_server:stop(Server, shutdown, infinity) of
+        ok -> ok
+    catch
+        exit:Reason when Reason =:= noproc;
+                         Reason =:= normal;
+                         Reason =:= shutdown ->
+            {error, not_started}
+    end.
+
+ask(Category, EventType) ->
+    ask(Category, EventType, fun default_event_fun/2).
+
+ask(Category, EventType, EventFun) ->
+    ask(Category, EventType, EventFun, []).
+
+ask(Category, EventType, EventFun, Opts) ->
+    deigma_category:ask(Category, EventType, EventFun, Opts).
+
+get_counters(Category) ->
+    deigma_category:get_counters(Category).
+
+%% ------------------------------------------------------------------
+%% supervisor Function Definitions
+%% ------------------------------------------------------------------
+
+init([Category]) ->
+    SupFlags =
+        #{ sup_flags => one_for_one,
+           intensity => 10,
+           period => 1
+         },
+    DelayedApplyPoolArgs =
+        [deigma_delayed_apply:pool_name(Category),
+         deigma_delayed_apply, % resource module
+         [Category], % resource args
+         #{ min_resources => erlang:system_info(schedulers_online)
+          }
+        ],
+    ChildSpecs =
+        [#{ id => category,
+            start => {deigma_category, start_link, [Category]}
+          },
+         #{ id => delayed_apply_pool,
+            start => {workforce, start_link, DelayedApplyPoolArgs}
+          }
+        ],
+    {ok, {SupFlags, ChildSpecs}}.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
+default_event_fun(_AcceptedCount, _RejectedCount) ->
+    accept.

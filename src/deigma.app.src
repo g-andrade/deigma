@@ -5,8 +5,10 @@
   {mod, {deigma_app, []}},
   {applications,
    [kernel,
-    sasl,
-    stdlib
+    sasl, % remove later
+    stdlib,
+    % external dependencies
+    workforce
    ]},
   {env,[]},
   {modules, []},
