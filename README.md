@@ -3,48 +3,41 @@
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
 [![](https://travis-ci.org/g-andrade/deigma.png?branch=master)](https://travis-ci.org/g-andrade/deigma)
 
-### <span id="deigma_-_Event_sampler">deigma - Event sampler</span>
-
 `deigma` is a library for Erlang/OTP and Elixir that allows you to
-sample events based on arbitrary rate limits.
+sample events within continuous 1 second windows\[1\].
 
-The sampling rate is calculated automatically and continuously adjusted
-over a one second window so that the events that go through are
-representative of what's happening in the system.
+The sampling rate is steadily adjusted so that the events that go
+through are representative of what's happening in the system.
 
-#### <span id="Usage">Usage</span>
+\[\*\] As far as the resolution of monotonic clock goes.
+
+#### Example
 
 ``` erlang
-EventType = inbound_http_request,
-MaxPerSecond = 100,
+{ok, _} = deigma:start(metrics).
+```
 
-case deigma:report(EventType, MaxPerSecond) of
+``` erlang
+case deigma:ask(metrics, http_requests, [{max_rate, 100}]) of
     {accept, SampleRate} ->
-        % your_metrics:report(EventType, SampleRate);
+        your_metrics:report(http_requests, SampleRate);
     {drop, _SampleRate} ->
-        % ok
+        ok
 end.
 ```
 
-  - `EventType` is an arbitrary term that categorizes your event
-  - `MaxPerSecond` is a ceiling on how many `EventType` occurences
-    you're willing to `accept`, per second
-  - `SampleRate` represents the percentage of `EventType` occurences
-    that were accepted over the last second; it's a floating point
-    number between `0.0` and `1.0`
+#### Details
 
-#### <span id="Details">Details</span>
-
-##### <span id="Requirements">Requirements</span>
+#### Tested setup
 
   - Erlang/OTP 18 or higher
   - rebar3
 
-##### <span id="Documentation">Documentation</span>
+#### Documentation
 
 Documentation is hosted on [HexDocs](https://hexdocs.pm/deigma/).
 
-#### <span id="License">License</span>
+#### License
 
 MIT License
 

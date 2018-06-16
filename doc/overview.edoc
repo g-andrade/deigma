@@ -6,46 +6,41 @@
 <a target="_parent" href="https://travis-ci.org/g-andrade/deigma" alt="Build Status">
     <img src="https://travis-ci.org/g-andrade/deigma.png?branch=master"/></a>
 
-== deigma - Event sampler ==
+`deigma' is a library for Erlang/OTP and Elixir that allows you to sample events within continuous 1 second windows[1].
 
-`deigma' is a library for Erlang/OTP and Elixir that allows you to sample events based on arbitrary rate limits.
+The sampling rate is steadily adjusted so that the events that go through are representative of what's happening in the system.
 
-The sampling rate is calculated automatically and continuously adjusted over a one second window so that the events that go through are representative of what's happening in the system.
+[*] As far as the resolution of monotonic clock goes.
 
-=== Usage ===
+<h4>Example</h4>
 
 <pre lang="erlang" class="erlang">
-EventType = inbound_http_request,
-MaxPerSecond = 100,
+{ok, _} = deigma:start(metrics).
+</pre>
 
-case deigma:report(EventType, MaxPerSecond) of
+<pre lang="erlang" class="erlang">
+case deigma:ask(metrics, http_requests, [{max_rate, 100}]) of
     {accept, SampleRate} ->
-        % your_metrics:report(EventType, SampleRate);
+        your_metrics:report(http_requests, SampleRate);
     {drop, _SampleRate} ->
-        % ok
+        ok
 end.
 </pre>
 
-<ul>
-<li>`EventType' is an arbitrary term that categorizes your event</li>
-<li>`MaxPerSecond' is a ceiling on how many `EventType' occurences you're willing to `accept', per second</li>
-<li>`SampleRate' represents the percentage of `EventType' occurences that were accepted over the last second; it's a floating point number between `0.0' and `1.0'</li>
-</ul>
+<h4>Details</h4>
 
-=== Details ===
-
-==== Requirements ====
+<h4>Tested setup</h4>
 
 <ul>
 <li>Erlang/OTP 18 or higher</li>
 <li>rebar3</li>
 </ul>
 
-==== Documentation ====
+<h4>Documentation</h4>
 
 Documentation is hosted on <a target="_parent" href="https://hexdocs.pm/deigma/">HexDocs</a>.
 
-=== License ===
+<h4>License</h4>
 
 MIT License
 
