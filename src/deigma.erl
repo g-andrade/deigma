@@ -145,7 +145,8 @@ stop(Category) ->
 %% </ul>
 %%
 %% `SampleRate' is a floating point number between 0.0 and 1.0 representing
-%% the percentage of events that were sampled during the last 1000 milliseconds.
+%% the percentage of events that were sampled during the last 1000 milliseconds,
+%% including the event reported just now.
 %%
 %% @see ask/3
 %% @see ask/4
@@ -167,7 +168,8 @@ ask(Category, EventType) ->
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
 %%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
 %%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
-%%              of events that were sampled during the last 1000 milliseconds.
+%%              of events that were sampled during the last 1000 milliseconds, including the event
+%%              reported just now.
 %%          </li>
 %%      </ul>
 %%      It will be called from within the event window for `EventType', which means
@@ -212,7 +214,8 @@ ask(Category, EventType, Opts) ->
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
 %%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
 %%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
-%%              of events that were sampled during the last 1000 milliseconds.
+%%              of events that were sampled during the last 1000 milliseconds, including the event
+%%              reported just now.
 %%          </li>
 %%      </ul>
 %%      It will be called from within the event window for `EventType', which means
