@@ -21,7 +21,7 @@ with limited information.
 clock](http://erlang.org/doc/apps/erts/time_correction.html#Erlang_Monotonic_Time)
 resolution goes.
 
-#### Example
+#### Example (Erlang)
 
 There's a heavy duty web service; we want to report metrics on inbound
 HTTP requests to a [StatsD](https://github.com/etsy/statsd) service over
@@ -61,6 +61,31 @@ end.
     within a `Category`; it can be [overridden](#rate-limiting).
   - The function invoked each time an event gets registered can also be
     [customized](#custom-event-functions-and-serializability).
+
+#### Example (Elixir)
+
+Same scenario as in the Erlang example.
+
+##### 1\. Start a deigma instance
+
+``` elixir
+category = :metrics,
+{:ok, _pid} = :deigma.start(category).
+```
+
+##### 2\. Sample events
+
+``` elixir
+category = :metrics,
+event_type = :http_request,
+
+case :deigma.ask(category, event_type) do
+    {:sample, sampling_percentage} ->
+        your_metrics:report(:counter, event_type, +1, sampling_percentage)
+    {:drop, _sampling_percentage} ->
+        :ok
+end.
+```
 
 #### Documentation and Reference
 
