@@ -5,7 +5,7 @@
 
 `deigma` is an event sampler for for Erlang/OTP and Elixir.
 
-It performs sampling within continuous 1 second windows\[1\] based on
+It performs sampling within continuous one second windows\[\*\] based on
 specified rate limits.
 
 The sampling rate is steadily adjusted so that the events that seep
@@ -22,13 +22,13 @@ resolution goes.
 
 #### Example
 
-There's heavy duty a web service; we want to report metrics on inbound
-http requests to [StatsD](https://github.com/etsy/statsd) service over
+There's a heavy duty a web service; we want to report metrics on inbound
+http requests to a [StatsD](https://github.com/etsy/statsd) service over
 UDP while minimising the risk of dropped datagrams due to an excessive
 amount of them.
 
-For this, we can downsample the reported metrics and determine the real
-sampling rate using `deigma`.
+For this, we can downsample the reported metrics while determining the
+real sampling rate using `deigma`.
 
 ##### 1\. Start a deigma instance
 
@@ -42,6 +42,7 @@ Category = metrics,
 ``` erlang
 Category = metrics,
 EventType = http_request,
+
 case deigma:ask(Category, EventType) of
     {sample, SampleRate} ->
         your_metrics:report(counter, EventType, +1, SampleRate);
@@ -54,13 +55,11 @@ end.
   - [`EventType`](#event_windows) can be any term
   - `SampleRate` is a floating point number between 0.0 and 1.0
     representing the percentage of events that were sampled during the
-    last 1000 milliseconds, including the event reported just now.
-
-The rate limit defaults to 100 `EventType` occurences per second; it can
-be [overridden](#rate_limiting).
-
-The function invoked each time an event gets registered can also be
-[customized](#custom_event_fun).
+    last 1000 milliseconds, **including** the event reported just now.
+  - The rate limit defaults to 100 `EventType` occurences per second
+    within a `Category`; it can be [overridden](#rate_limiting).
+  - The function invoked each time an event gets registered can also be
+    [customized](#custom_event_functions_and_serializibility).
 
 #### Documentation and Reference
 
@@ -72,7 +71,7 @@ Documentation and reference are hosted on
   - Erlang/OTP 18 or higher
   - rebar3
 
-#### On categories
+#### Categories
 
 Each `Category` represents an independent group of events and is managed
 separately; categories can be launched under your own supervision tree
@@ -81,7 +80,7 @@ application (using `:start/1`).
 
 Categories launched under `deigma` can be stopped using `:stop/1`.
 
-#### On event windows
+#### Event windows
 
 Within the context of each `Category`, each distinct `EventType` will be
 handled under dedicated event windows that are owned by independent
@@ -90,7 +89,7 @@ processes.
 These processes are created on-demand as new `EventType` values get
 sampled, and stopped after 1000 milliseconds of inactivity.
 
-#### On rate limits
+#### Rate limiting
 
 Each time a new event is reported, the rate limit is applied according
 to how many events were sampled so far during the previous 1000
@@ -98,14 +97,13 @@ milliseconds; if the limit has been or is about to be exceeded, the
 event gets dropped.
 
 The default rate limit is set to 100 `EventType` occurences per second
-within a `Category`.
-
-It can be overriden using `:ask` options:
+within a `Category`. It can be overriden using `:ask` options:
 
 ``` erlang
 Category = metrics,
 EventType = http_request,
 MaxRate = 50,
+
 case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
     {sample, SampleRate} ->
         your_metrics:report(counter, EventType, +1, SampleRate);
@@ -114,7 +112,7 @@ case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
 end.
 ```
 
-#### On event functions and serializability
+#### Custom event functions and serializability
 
 The function invoked upon an event getting registered, within an event
 window, can be customized.
@@ -126,6 +124,7 @@ bottleneck.
 ``` erlang
 Category = metrics,
 EventType = http_request,
+
 deigma:ask(
     Category, EventType,
     fun (Timestamp, sample, SampleRate) ->
