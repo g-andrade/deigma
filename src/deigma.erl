@@ -176,7 +176,7 @@ ask(Category, EventType) ->
 %%      it can be used for fullfilling serialisation constraints; at the same time,
 %%      performance has to be taken into account (lest the event window become a bottleneck.)
 %% </li>
-%% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
+%% <li>`Opts' must be a list of `ask_opt()' items:
 %%      <ul>
 %%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
 %%              second (defaults to `100')
@@ -198,7 +198,7 @@ ask(Category, EventType) ->
              SamplingPercentage :: float(),
              Decision :: sample | drop,
              EventFunResult :: term(),
-             Opts :: [deigma_event_window:opt()].
+             Opts :: [ask_opt()].
 ask(Category, EventType, EventFun) when is_function(EventFun) ->
     ask(Category, EventType, EventFun, []);
 ask(Category, EventType, Opts) ->
@@ -222,7 +222,7 @@ ask(Category, EventType, Opts) ->
 %%      it can be used for fullfilling serialisation constraints; at the same time,
 %%      performance has to be taken into account (lest the event window become a bottleneck.)
 %% </li>
-%% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
+%% <li>`Opts' must be a list of `ask_opt()' items:
 %%      <ul>
 %%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
 %%              second (defaults to `100')
@@ -243,7 +243,7 @@ ask(Category, EventType, Opts) ->
              SamplingPercentage :: float(),
              Decision :: sample | drop,
              EventFunResult :: term(),
-             Opts :: [deigma_event_window:opt()].
+             Opts :: [ask_opt()].
 ask(Category, EventType, EventFun, Opts) ->
     deigma_event_window:ask(Category, EventType, EventFun, Opts).
 
