@@ -61,6 +61,7 @@
 %%-------------------------------------------------------------------
 
 -define(time_span(), 1). % in seconds
+-define(ms_time_span(), 1000). % in milliseconds
 -define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))). % in native units
 
 %%-------------------------------------------------------------------
@@ -180,6 +181,9 @@ loop(Parent, Debug, State) ->
             Now = erlang:monotonic_time(),
             UpdatedState = purge_expired(Now, State),
             handle_message(Now, Msg, Parent, Debug, UpdatedState)
+    after
+        ?ms_time_span() ->
+            exit(normal)
     end.
 
 handle_message(_Now, {system, From, Request}, Parent, Debug, State) ->
@@ -248,7 +252,3 @@ handle_sampling(WindowSize, SampledCounter, MaxRate) when SampledCounter >= MaxR
     {WindowSize + 1, SampledCounter, drop};
 handle_sampling(WindowSize, SampledCounter, _MaxRate) ->
     {WindowSize + 1, SampledCounter + 1, accept}.
-
-%inactivity_timeout() ->
-%    InSeconds = max(0, ?inactivity_timeout_mean() + (math:sqrt(?inactivity_timeout_stddev()) * rand:normal())),
-%    trunc(InSeconds * 1000).
