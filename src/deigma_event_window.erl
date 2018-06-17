@@ -92,7 +92,8 @@
 start_link(Category, EventType) ->
     proc_lib:start_link(?MODULE, init, [{self(), [Category, EventType]}]).
 
--spec ask(atom(), term(), fun ((decision(), float()) -> term()), [opt()]) -> term() | no_return().
+-spec ask(atom(), term(), fun ((integer(), decision(), float())
+        -> term()), [opt()]) -> term() | no_return().
 %% @private
 ask(Category, EventType, EventFun, Opts) ->
     MaxRate = proplists:get_value(max_rate, Opts, infinity),
