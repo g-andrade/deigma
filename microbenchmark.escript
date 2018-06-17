@@ -72,10 +72,24 @@ run_worker_loop(Category, Nr, Parent, NrOfCalls, StartTs, Count, CountPerResult)
                     UpdatedCountPerResult).
 
 maps_increment(Key, Incr, Map) ->
-    maps:update_with(
+    maps_update_with(
       Key,
       fun (Value) -> Value + Incr end,
       Incr, Map).
 
 ask_handler(Decision, SampleRate) ->
     {Decision, SampleRate}.
+
+-ifdef(POST_OTP18).
+maps_update_with(Key, Fun, Init, Map) ->
+    maps:update_with(Key, Fun, Init, Map).
+-else.
+maps_update_with(Key, Fun, Init, Map) ->
+    case maps:find(Key, Map) of
+        {ok, Value} ->
+            UpdatedValue = Fun(Value),
+            Map#{ Key := UpdatedValue };
+        error ->
+            Map#{ Key => Init }
+    end.
+-endif.
