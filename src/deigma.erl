@@ -140,7 +140,7 @@ stop(Category) ->
 %%
 %% Returns:
 %% <ul>
-%% <li>`{accept, SampleRate}' if the event was sampled</li>
+%% <li>`{sample, SampleRate}' if the event was sampled</li>
 %% <li>`{drop, SampleRate}' if the event was dropped</li>
 %% </ul>
 %%
@@ -153,7 +153,7 @@ stop(Category) ->
 -spec ask(Category, EventType) -> {Decision, SampleRate}
         when Category :: atom(),
              EventType :: term(),
-             Decision :: accept | drop,
+             Decision :: sample | drop,
              SampleRate :: float().
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
@@ -166,7 +166,7 @@ ask(Category, EventType) ->
 %% <li>`EventFun' must be a function which will receive the following arguments:
 %%      <ul>
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
-%%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
+%%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
 %%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
 %%              of events that were sampled during the last 1000 milliseconds, including the event
 %%              reported just now.
@@ -196,7 +196,7 @@ ask(Category, EventType) ->
              EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
              Timestamp :: integer(),
              SampleRate :: float(),
-             Decision :: accept | drop,
+             Decision :: sample | drop,
              EventFunResult :: term(),
              Opts :: [deigma_event_window:opt()].
 ask(Category, EventType, EventFun) when is_function(EventFun) ->
@@ -212,7 +212,7 @@ ask(Category, EventType, Opts) ->
 %% <li>`EventFun' must be a function which will receive the following arguments:
 %%      <ul>
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
-%%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
+%%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
 %%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
 %%              of events that were sampled during the last 1000 milliseconds, including the event
 %%              reported just now.
@@ -241,7 +241,7 @@ ask(Category, EventType, Opts) ->
              EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
              Timestamp :: integer(),
              SampleRate :: float(),
-             Decision :: accept | drop,
+             Decision :: sample | drop,
              EventFunResult :: term(),
              Opts :: [deigma_event_window:opt()].
 ask(Category, EventType, EventFun, Opts) ->

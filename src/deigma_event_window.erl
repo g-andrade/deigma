@@ -81,7 +81,7 @@
 
 -type event() :: {timestamp(), decision()}.
 -type timestamp() :: integer().
--type decision() :: accept | drop.
+-type decision() :: sample | drop.
 
 %%-------------------------------------------------------------------
 %% API Function Definitions
@@ -238,7 +238,7 @@ purge_expired(TimeFloor, Window, WindowSize, SampledCounter) ->
             UpdatedWindow = queue:drop(Window),
             UpdatedWindowSize = WindowSize - 1,
             case EventDecision of
-                accept ->
+                sample ->
                     UpdatedSampledCounter = SampledCounter - 1,
                     purge_expired(
                       TimeFloor, UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter);
@@ -253,4 +253,4 @@ purge_expired(TimeFloor, Window, WindowSize, SampledCounter) ->
 handle_sampling(WindowSize, SampledCounter, MaxRate) when SampledCounter >= MaxRate ->
     {WindowSize + 1, SampledCounter, drop};
 handle_sampling(WindowSize, SampledCounter, _MaxRate) ->
-    {WindowSize + 1, SampledCounter + 1, accept}.
+    {WindowSize + 1, SampledCounter + 1, sample}.

@@ -111,9 +111,9 @@ ask_1000_1000_test(Config) ->
 
 default_event_fun_test(_Config) ->
     {ok, _Pid} = deigma:start(default_event_fun_test),
-    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar)),
-    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar, [])),
-    ?assertEqual({accept,1.0}, deigma:ask(default_event_fun_test, foobar, [{max_rate,5000}])),
+    ?assertEqual({sample,1.0}, deigma:ask(default_event_fun_test, foobar)),
+    ?assertEqual({sample,1.0}, deigma:ask(default_event_fun_test, foobar, [])),
+    ?assertEqual({sample,1.0}, deigma:ask(default_event_fun_test, foobar, [{max_rate,5000}])),
     ok = deigma:stop(default_event_fun_test),
     {error, not_started} = deigma:stop(default_event_fun_test).
 
@@ -203,11 +203,11 @@ check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDec
     {Ts, Decision, _SampleRate} = Event,
     RelevantPrev = relevant_history(Ts, Prev),
     CountPerDecision = count_history_decisions(RelevantPrev),
-    PrevAcceptances = maps:get(accept, CountPerDecision),
+    PrevSamples = maps:get(sample, CountPerDecision),
     RightDecision =
-        case PrevAcceptances >= MaxRate of
+        case PrevSamples >= MaxRate of
             true -> drop;
-            false -> accept
+            false -> sample
         end,
 
     case RightDecision =:= Decision of
@@ -235,7 +235,7 @@ count_history_decisions(Prev) ->
                 fun (Val) -> Val + 1 end,
                 Acc)
       end,
-      #{ accept => 0,
+      #{ sample => 0,
          drop => 0
        },
       Prev).
@@ -250,28 +250,28 @@ check_ask_test_rates([Event | Next], Prev) ->
     ?assert(SampleRate >= 0 andalso SampleRate =< 1),
     RelevantPrev = relevant_history(Ts, Prev),
     CountPerDecision = count_history_decisions(RelevantPrev),
-    PrevAcceptances = maps:get(accept, CountPerDecision),
+    PrevSamples = maps:get(sample, CountPerDecision),
     PrevDrops = maps:get(drop, CountPerDecision),
-    ct:pal("PrevAcceptances ~p, PrevDrops ~p", [PrevAcceptances, PrevDrops]),
-    Total = PrevAcceptances + PrevDrops + 1,
+    ct:pal("PrevSamples ~p, PrevDrops ~p", [PrevSamples, PrevDrops]),
+    Total = PrevSamples + PrevDrops + 1,
     RealSampleRate =
-        if Decision =:= accept ->
-               (PrevAcceptances + 1) / Total;
+        if Decision =:= sample ->
+               (PrevSamples + 1) / Total;
            Decision =:= drop ->
-               (PrevAcceptances / Total)
+               (PrevSamples / Total)
         end,
     ?assertEqual(RealSampleRate, SampleRate),
     check_ask_test_rates(Next, [Event | Prev]).
 
 event_fun({value, Value}) ->
     fun (_Timestamp, Decision, SampleRate) ->
-            ?assert(lists:member(Decision, [accept, drop])),
+            ?assert(lists:member(Decision, [sample, drop])),
             ?assert(SampleRate >= 0 andalso SampleRate =< 1),
             Value
     end;
 event_fun({exception, Class, Reason}) ->
     fun (_Timestamp, Decision, SampleRate) ->
-            ?assert(lists:member(Decision, [accept, drop])),
+            ?assert(lists:member(Decision, [sample, drop])),
             ?assert(SampleRate >= 0 andalso SampleRate =< 1),
             erlang:raise(Class, Reason, [])
     end.

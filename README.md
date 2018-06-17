@@ -36,7 +36,7 @@ Category = metrics,
 EventType = http_request,
 MaxRate = 100,
 case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
-    {accept, SampleRate} ->
+    {sample, SampleRate} ->
         your_metrics:report(counter, EventType, +1, SampleRate);
     {drop, _SampleRate} ->
         ok
