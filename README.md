@@ -69,8 +69,8 @@ Same scenario as in the Erlang example.
 ##### 1\. Start a deigma instance
 
 ``` elixir
-category = :metrics,
-{:ok, _pid} = :deigma.start(category).
+category = :metrics
+{:ok, _pid} = :deigma.start(category)
 ```
 
 ##### 2\. Sample events

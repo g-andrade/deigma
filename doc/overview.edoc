@@ -72,8 +72,8 @@ Same scenario as in the Erlang example.
 <h5>1. Start a deigma instance</h5>
 
 <pre lang="elixir" class="elixir">
-category = :metrics,
-{:ok, _pid} = :deigma.start(category).
+category = :metrics
+{:ok, _pid} = :deigma.start(category)
 </pre>
 
 <h5>2. Sample events</h5>
