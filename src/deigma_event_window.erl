@@ -64,6 +64,8 @@
 -define(ms_time_span(), 1000). % in milliseconds
 -define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))). % in native units
 
+-define(DEFAULT_MAX_RATE, 100).
+
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
 %%-------------------------------------------------------------------
@@ -92,7 +94,7 @@ start_link(Category, EventType) ->
 -spec ask(atom(), term(), fun ((integer(), decision(), float())
         -> term()), [deigma:ask_opt()]) -> term() | no_return().
 ask(Category, EventType, EventFun, Opts) ->
-    MaxRate = proplists:get_value(max_rate, Opts, infinity),
+    MaxRate = proplists:get_value(max_rate, Opts, ?DEFAULT_MAX_RATE),
     Pid = lookup_or_start(Category, EventType),
     Mon = monitor(process, Pid),
     Tag = Mon,

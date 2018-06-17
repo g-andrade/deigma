@@ -177,7 +177,7 @@ ask(Category, EventType) ->
 %% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
 %%      <ul>
 %%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
-%%              second (defaults to `infinity')
+%%              second (defaults to `100')
 %%          </li>
 %%      </ul>
 %% </li>
@@ -222,7 +222,7 @@ ask(Category, EventType, Opts) ->
 %% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
 %%      <ul>
 %%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
-%%              second (defaults to `infinity')
+%%              second (defaults to `100')
 %%          </li>
 %%      </ul>
 %% </li>
