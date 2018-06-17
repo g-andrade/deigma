@@ -8,7 +8,7 @@
 main([]) ->
     Category = microbenchmarking,
     NrOfWorkers = ?NR_OF_WORKERS,
-    NrOfCalls = 2000000,
+    NrOfCalls = 4000000,
     {ok, _} = application:ensure_all_started(deigma),
     {ok, _} = application:ensure_all_started(sasl),
     {ok, _} = deigma:start(wowow),
