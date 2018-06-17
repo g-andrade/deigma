@@ -112,7 +112,7 @@ ask(Category, EventType, EventFun, Opts) ->
             % inactive process stopped; ask again
             ask(Category, EventType, EventFun, Opts);
         {'DOWN', Mon, process, _Pid, Reason} ->
-            error({category_stopped, Reason})
+            error({event_window_stopped, Category, EventType, Reason})
     end.
 
 %%-------------------------------------------------------------------
