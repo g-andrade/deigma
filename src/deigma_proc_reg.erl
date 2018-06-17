@@ -106,7 +106,7 @@ handle_call({register, Name, Pid}, _From, State) ->
             ets:insert(Table, {Name,Pid}),
             NewMonitor = monitor(process, Pid),
             Monitors = State#state.monitors,
-            UpdatedMonitors = maps:put(NewMonitor, Name, Monitors),
+            UpdatedMonitors = Monitors#{ NewMonitor => Name },
             UpdatedState = State#state{ monitors = UpdatedMonitors },
             {reply, ok, UpdatedState}
     end;
@@ -123,7 +123,7 @@ handle_cast(_Cast, State) ->
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
     {Name, UpdatedMonitors} = maps_take(Ref, Monitors),
-    [_] = ets_take(State#state.table, Name),
+    [_] = ets:take(State#state.table, Name),
     UpdatedState = State#state{ monitors = UpdatedMonitors },
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
@@ -156,15 +156,4 @@ maps_take(Key, Map) ->
         error ->
             error
     end.
--endif.
-
--ifdef(POST_OTP17).
-ets_take(Table, Key) ->
-    ets:take(Table, Key).
--else.
-ets_take(Table, Key) ->
-    % XXX only works because of this module's particular context
-    Objects = ets:lookup(Table, Key),
-    ets:delete(Table, Key),
-    Objects.
 -endif.

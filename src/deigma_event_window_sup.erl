@@ -56,15 +56,13 @@ start_child(Category, Args) ->
 %% ------------------------------------------------------------------
 
 -spec init([atom(), ...])
-        -> {ok, {{simple_one_for_one, 5, 1}, [supervisor:child_spec(), ...]}}.
+        -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 init([Category]) ->
-    SupFlags = {simple_one_for_one, 5, 1},
+    SupFlags = #{ strategy => simple_one_for_one },
     ChildSpecs =
-        [{event_window,
-          {deigma_event_window, start_link, [Category]},
-          temporary,
-          5000,
-          worker,
-          [deigma_event_window]
-         }],
+        [#{ id => event_window,
+            start => {deigma_event_window, start_link, [Category]},
+            restart => temporary
+          }
+        ],
     {ok, {SupFlags, ChildSpecs}}.

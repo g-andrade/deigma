@@ -65,22 +65,11 @@ start_link(Category) ->
 
 -spec child_spec(Category) -> supervisor:child_spec()
         when Category :: atom().
--ifdef(POST_OTP17).
 child_spec(Category) ->
     #{ id => {deigma, Category},
        start => {?MODULE, start_link, [Category]},
        type => supervisor
      }.
--else.
-child_spec(Category) ->
-    {{deigma, Category},
-     {?MODULE, start_link, [Category]},
-     permanent,
-     infinity,
-     supervisor,
-     [?MODULE]
-    }.
--endif.
 
 -spec start(Category) -> {ok, pid()} | {error, term()}
         when Category :: atom().
@@ -89,7 +78,6 @@ start(Category) ->
 
 -spec stop(Category) -> ok | {error, not_started}
         when Category :: atom().
--ifdef(POST_OTP17).
 stop(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     try gen_server:stop(Server, shutdown, infinity) of
@@ -100,26 +88,6 @@ stop(Category) ->
                          Reason =:= shutdown ->
             {error, not_started}
     end.
--else.
-stop(Category) ->
-    Server = deigma_util:proc_name(?MODULE, Category),
-    case whereis(Server) of
-        undefined ->
-            {error, not_started};
-        Pid ->
-            Mon = monitor(process, Pid),
-            exit(Pid, shutdown),
-            receive
-                {'DOWN', Mon, process, Pid, Reason} when Reason =:= shutdown ->
-                    ok;
-                {'DOWN', Mon, process, Pid, Reason} when Reason =:= noproc;
-                                                         Reason =:= normal ->
-                    {error, not_started};
-                {'DOWN', Mon, process, Pid, Reason} ->
-                    error(Reason)
-            end
-    end.
--endif.
 
 -spec ask(Category, EventType) -> {Decision, SampleRate}
         when Category :: atom(),
@@ -160,25 +128,18 @@ ask(Category, EventType, EventFun, Opts) ->
 %% ------------------------------------------------------------------
 
 -spec init([atom(), ...])
-        -> {ok, {{rest_for_one, 10, 1}, [supervisor:child_spec(), ...]}}.
+        -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 %% @private
 init([Category]) ->
-    SupFlags = {rest_for_one, 10, 1},
+    SupFlags = #{ strategy => rest_for_one },
     ChildSpecs =
-        [{proc_reg,
-          {deigma_proc_reg, start_link, [Category]},
-          permanent,
-          5000,
-          worker,
-          [deigma_proc_reg]
-         },
-         {event_windows,
-          {deigma_event_window_sup, start_link, [Category]},
-          permanent,
-          infinity,
-          supervisor,
-          [deigma_event_window_sup]
-         }],
+        [#{ id => proc_reg,
+            start => {deigma_proc_reg, start_link, [Category]}
+          },
+         #{ id => event_windows,
+            start => {deigma_event_window_sup, start_link, [Category]},
+            type => supervisor
+          }],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% ------------------------------------------------------------------

@@ -26,14 +26,7 @@
 -ifdef(RUNNING_ON_TRAVIS).
 -define(ASK_TEST_DURATION, (timer:seconds(3))).
 -else.
--define(ASK_TEST_DURATION, (timer:seconds(1))).
--endif.
-
--ifdef(POST_OTP17).
--define(WINDOW_TIME_SPAN, (erlang:convert_time_unit(1, seconds, native))).
--else.
-% dirty hack so we don't have to share macros and internal code with the event window
--define(WINDOW_TIME_SPAN, (1000000)).
+-define(ASK_TEST_DURATION, (timer:seconds(5))).
 -endif.
 
 %% ------------------------------------------------------------------
@@ -163,13 +156,13 @@ run_ask_test(NrOfEventTypes, MaxRate) ->
     ok = deigma:stop(Category).
 
 run_ask_test_recur(Category, NrOfEventTypes, MaxRate, Acc) ->
-    Timeout = rand_uniform(2) - 1,
+    Timeout = rand:uniform(2) - 1,
     receive
         test_over ->
             check_ask_test_results(MaxRate, Acc)
     after
         Timeout ->
-            EventType = rand_uniform(NrOfEventTypes),
+            EventType = rand:uniform(NrOfEventTypes),
             {Ts, Decision, SampleRate} =
                 deigma:ask(
                   Category, EventType,
@@ -227,7 +220,7 @@ check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDec
     end.
 
 relevant_history(Ts, Prev) ->
-    TsFloor = Ts - ?WINDOW_TIME_SPAN,
+    TsFloor = Ts - erlang:convert_time_unit(1, seconds, native),
     lists:takewhile(
       fun ({EntryTs, _Decision, _SampleRate}) ->
               EntryTs >= TsFloor
@@ -242,12 +235,9 @@ count_history_decisions(Prev) ->
                 fun (Val) -> Val + 1 end,
                 Acc)
       end,
-      maps:from_list(
-        % We declare the map as this rather than a literal
-        % because of a weird bug in OTP 17.
-        [{accept, 0},
-         {drop, 0}
-        ]),
+      #{ accept => 0,
+         drop => 0
+       },
       Prev).
 
 check_ask_test_rates(Events) ->
@@ -297,30 +287,15 @@ maps_update_with(Key, Fun, Map) ->
     case maps:find(Key, Map) of
         {ok, Value} ->
             UpdatedValue = Fun(Value),
-            maps:update(Key, UpdatedValue, Map)
+            Map#{ Key := UpdatedValue }
     end.
 
 maps_update_with(Key, Fun, Init, Map) ->
     case maps:find(Key, Map) of
         {ok, Value} ->
             UpdatedValue = Fun(Value),
-            maps:update(Key, UpdatedValue, Map);
+            Map#{ Key := UpdatedValue };
         error ->
-            maps:put(Key, Init, Map)
+            Map#{ Key => Init }
     end.
--endif.
-
--ifdef(POST_OTP17).
-rand_seed() ->
-    ok.
-
-rand_uniform(N) ->
-    rand:uniform(N).
--else.
-rand_seed() ->
-    Now = erlang:now(),
-    random:seed(Now).
-
-rand_uniform(N) ->
-    random:uniform(N).
 -endif.

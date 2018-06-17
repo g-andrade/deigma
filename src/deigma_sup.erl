@@ -65,16 +65,13 @@ start_child(Args) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([]) -> {ok, {{simple_one_for_one, 0, 1}, [supervisor:child_spec(), ...]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 init([]) ->
-    SupFlags =
-        {simple_one_for_one, 0, 1},
+    SupFlags = #{ strategy => simple_one_for_one },
     ChildSpecs =
-        [{deigma,
-          {deigma, start_link, []},
-          temporary,
-          infinity,
-          supervisor,
-          [deigma]
-         }],
+        [#{ id => deigma,
+            start => {deigma, start_link, []},
+            restart => temporary,
+            type => supervisor
+          }],
     {ok, {SupFlags, ChildSpecs}}.
