@@ -122,8 +122,8 @@ to how many events were sampled so far during the previous 1000
 milliseconds; if the limit has been or is about to be exceeded, the
 event gets dropped.
 
-The default rate limit is set to 100 `EventType` occurences per second
-within a `Category`. It can be overriden using `:ask` options:
+The default rate limit is set to 100 `EventType` occurrences per second
+within a `Category`. It can be overridden using `:ask` options:
 
 ``` erlang
 Category = metrics,
@@ -164,7 +164,7 @@ deigma:ask(
     timestamp](http://erlang.org/doc/man/erlang.html#monotonic_time-0),
     in native units, at which the event was registered
 
-In this scenario, whathever your function returns (or throws) will be
+In this scenario, whatever your function returns (or throws) will be
 what `deigma:ask` returns (or throws.)
 
 #### License
