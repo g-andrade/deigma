@@ -5,13 +5,14 @@
 
 `deigma` is an event sampler for for Erlang/OTP and Elixir.
 
-It performs sampling within continuous one second windows\[\*\] based on
-specified rate limits.
+It performs sampling of reported events within continuous one second
+windows\[\*\].
 
 The sampling percentage is steadily adjusted so that the events that
-seep through are representative of what's happening in the system.
+seep through are representative of what's happening in the system while
+not exceeding specified rate limits.
 
-The sampling percentage is also exposed in the context of each new
+The sampling percentage is also exposed in the context of each reported
 event, so that whichever other component that later receives the samples
 can perform reasonable guesses of the original population properties
 with limited information.
