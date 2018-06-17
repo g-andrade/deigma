@@ -59,8 +59,16 @@
 %% Macro Definitions
 %%-------------------------------------------------------------------
 
+-ifdef(POST_OTP17).
+-define(monotonic_time(), (erlang:monotonic_time())).
+-define(convert_time_unit(Value, FromUnit, ToUnit), (erlang:convert_time_unit(Value, FromUnit, ToUnit))).
+-else.
+-define(monotonic_time(), erlang_now_time()).
+-define(convert_time_unit(Value, FromUnit, ToUnit), (convert_now_time_unit(Value, FromUnit, ToUnit))).
+-endif.
+
 -define(time_span(), 1). % in seconds
--define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))). % in native units
+-define(native_time_span(), ?convert_time_unit(?time_span(), seconds, native)).
 
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
@@ -187,7 +195,7 @@ start(Category, EventType) ->
 loop(Parent, Debug, State) ->
     receive
         Msg ->
-            Now = erlang:monotonic_time(),
+            Now = ?monotonic_time(),
             UpdatedState = purge_expired(Now, State),
             handle_message(Now, Msg, Parent, Debug, UpdatedState)
     end.
@@ -259,6 +267,11 @@ handle_sampling(WindowSize, SampledCounter, MaxRate) when SampledCounter >= MaxR
 handle_sampling(WindowSize, SampledCounter, _MaxRate) ->
     {WindowSize + 1, SampledCounter + 1, accept}.
 
-%inactivity_timeout() ->
-%    InSeconds = max(0, ?inactivity_timeout_mean() + (math:sqrt(?inactivity_timeout_stddev()) * rand:normal())),
-%    trunc(InSeconds * 1000).
+-ifndef(POST_OTP17).
+erlang_now_time() ->
+    {MegaSecs, Secs, MicroSecs} = erlang:now(),
+    (((MegaSecs * 1000000) + Secs) * 1000000) + MicroSecs.
+
+convert_now_time_unit(Value, seconds, native) ->
+    Value * 1000000.
+-endif.
