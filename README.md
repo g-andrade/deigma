@@ -23,8 +23,8 @@ resolution goes.
 
 #### Example
 
-There's a heavy duty a web service; we want to report metrics on inbound
-http requests to a [StatsD](https://github.com/etsy/statsd) service over
+There's a heavy duty web service; we want to report metrics on inbound
+HTTP requests to a [StatsD](https://github.com/etsy/statsd) service over
 UDP while minimising the risk of dropped datagrams due to an excessive
 amount of them.
 
@@ -87,7 +87,7 @@ Within the context of each `Category`, each distinct `EventType` will be
 handled under dedicated event windows that are owned by independent
 processes.
 
-These processes are created on-demand as new `EventType` values get
+These processes are created on demand as new `EventType` values get
 sampled, and stopped after 1000 milliseconds of inactivity.
 
 #### Rate limiting
@@ -119,8 +119,8 @@ The function invoked upon an event getting registered, within an event
 window, can be customized.
 
 This is useful if you need serializability when handling sampling
-decisions and percentages, at the expense of potentially making the
-event window a bottleneck.
+decisions and percentages, at the expense of increasing the risk of the
+event window becoming a performance bottleneck.
 
 ``` erlang
 Category = metrics,
