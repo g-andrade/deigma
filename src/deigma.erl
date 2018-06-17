@@ -54,15 +54,39 @@
    ]).
 
 %% ------------------------------------------------------------------
+%% Record and Type Definitions
+%% ------------------------------------------------------------------
+
+-type ask_opt() ::
+    {max_rate, non_neg_integer() | infinity}.
+-export_type([ask_opt/0]).
+
+%% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+%% @doc Start a deigma instance named `Category' under your own supervisor
+%%
+%% <ul>
+%% <li>`Category' must be an atom</li>
+%% </ul>
+%%
+%% @see child_spec/1
+%% @see start/1
 -spec start_link(Category) -> {ok, pid()} | {error, term()}
         when Category :: atom().
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     supervisor:start_link({local,Server}, ?MODULE, [Category]).
 
+%% @doc Declare a deigma instance named `Category' under your own supervisor
+%%
+%% <ul>
+%% <li>`Category' must be an atom</li>
+%% </ul>
+%%
+%% @see start_link/2
+%% @see start/1
 -spec child_spec(Category) -> supervisor:child_spec()
         when Category :: atom().
 child_spec(Category) ->
@@ -71,11 +95,29 @@ child_spec(Category) ->
        type => supervisor
      }.
 
+%% @doc Start a deigma instance named `Category'
+%%
+%% <ul>
+%% <li>`Category' must be an atom</li>
+%% </ul>
+%%
+%% @see stop/1
+%% @see start_link/1
+%% @see child_spec/1
 -spec start(Category) -> {ok, pid()} | {error, term()}
         when Category :: atom().
 start(Category) ->
     deigma_sup:start_child([Category]).
 
+%% @doc Stop a deigma instance named `Category'
+%%
+%% <ul>
+%% <li>`Category' must be an atom</li>
+%% </ul>
+%%
+%% @see stop/1
+%% @see start_link/1
+%% @see child_spec/1
 -spec stop(Category) -> ok | {error, not_started}
         when Category :: atom().
 stop(Category) ->
@@ -89,6 +131,24 @@ stop(Category) ->
             {error, not_started}
     end.
 
+%% @doc Ask `Category' to sample an `EventType' event
+%%
+%% <ul>
+%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
+%% <li>`EventType' can be any term</li>
+%% </ul>
+%%
+%% Returns:
+%% <ul>
+%% <li>`{accept, SampleRate}' if the event was sampled</li>
+%% <li>`{drop, SampleRate}' if the event was dropped</li>
+%% </ul>
+%%
+%% `SampleRate' is a floating point number between 0.0 and 1.0 representing
+%% the percentage of events that were sampled during the last 1000 milliseconds.
+%%
+%% @see ask/3
+%% @see ask/4
 -spec ask(Category, EventType) -> {Decision, SampleRate}
         when Category :: atom(),
              EventType :: term(),
@@ -97,6 +157,37 @@ stop(Category) ->
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
 
+%% @doc Ask `Category' to sample an `EventType' event using custom function or overridden options
+%%
+%% <ul>
+%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
+%% <li>`EventType' can be any term</li>
+%% <li>`EventFun' must be a function which will receive the following arguments:
+%%      <ul>
+%%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
+%%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
+%%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
+%%              of events that were sampled during the last 1000 milliseconds.
+%%          </li>
+%%      </ul>
+%%      It will be called from within the event window for `EventType', which means
+%%      it can be used for fullfilling serialisation constraints; at the same time,
+%%      performance has to be taken into account (lest the event window become a bottleneck.)
+%% </li>
+%% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
+%%      <ul>
+%%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
+%%              second (defaults to `infinity')
+%%          </li>
+%%      </ul>
+%% </li>
+%% </ul>
+%%
+%% If called with `EventFun', it will return or throw whathever `EventFun' returns or throws.
+%% If called with `Opts', it will return the same as `:ask/2'.
+%%
+%% @see ask/2
+%% @see ask/4
 -spec ask(Category, EventType, EventFun | Opts) -> {Decision, SampleRate} | EventFunResult
         when Category :: atom(),
              EventType :: term(),
@@ -111,6 +202,36 @@ ask(Category, EventType, EventFun) when is_function(EventFun) ->
 ask(Category, EventType, Opts) ->
     ask(Category, EventType, fun default_ask_fun/3, Opts).
 
+%% @doc Ask `Category' to sample an `EventType' event using custom function and overridden options
+%%
+%% <ul>
+%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
+%% <li>`EventType' can be any term</li>
+%% <li>`EventFun' must be a function which will receive the following arguments:
+%%      <ul>
+%%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
+%%          <li>`Decision': Either `accept' or `drop' depending on whether the event was sampled or not</li>
+%%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
+%%              of events that were sampled during the last 1000 milliseconds.
+%%          </li>
+%%      </ul>
+%%      It will be called from within the event window for `EventType', which means
+%%      it can be used for fullfilling serialisation constraints; at the same time,
+%%      performance has to be taken into account (lest the event window become a bottleneck.)
+%% </li>
+%% <li>`Opts' must be a list of `deigma_event_window:opt()' items:
+%%      <ul>
+%%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
+%%              second (defaults to `infinity')
+%%          </li>
+%%      </ul>
+%% </li>
+%% </ul>
+%%
+%% It will return or throw whathever `EventFun' returns or throws.
+%%
+%% @see ask/2
+%% @see ask/3
 -spec ask(Category, EventType, EventFun, Opts) -> EventFunResult
         when Category :: atom(),
              EventType :: term(),

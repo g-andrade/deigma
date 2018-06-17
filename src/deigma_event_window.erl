@@ -18,6 +18,7 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
+%% @private
 -module(deigma_event_window).
 
 % based on https://gist.github.com/marcelog/97708058cd17f86326c82970a7f81d40#file-simpleproc-erl
@@ -79,22 +80,16 @@
 -type timestamp() :: integer().
 -type decision() :: accept | drop.
 
--type opt() ::
-    {max_rate, non_neg_integer() | infinity}.
--export_type([opt/0]).
-
 %%-------------------------------------------------------------------
 %% API Function Definitions
 %%-------------------------------------------------------------------
 
 -spec start_link(atom(), term()) -> {ok, pid()} | {error, {already_started, pid()}}.
-%% @private
 start_link(Category, EventType) ->
     proc_lib:start_link(?MODULE, init, [{self(), [Category, EventType]}]).
 
 -spec ask(atom(), term(), fun ((integer(), decision(), float())
-        -> term()), [opt()]) -> term() | no_return().
-%% @private
+        -> term()), [deigma:ask_opt()]) -> term() | no_return().
 ask(Category, EventType, EventFun, Opts) ->
     MaxRate = proplists:get_value(max_rate, Opts, infinity),
     Pid = lookup_or_start(Category, EventType),
@@ -122,7 +117,6 @@ ask(Category, EventType, EventFun, Opts) ->
 %%-------------------------------------------------------------------
 
 -spec init({pid(), [atom() | term(), ...]}) -> no_return().
-%% @private
 init({Parent, [Category, EventType]}) ->
     Debug = sys:debug_options([]),
     Server = registered_name(EventType),
@@ -137,25 +131,21 @@ init({Parent, [Category, EventType]}) ->
     end.
 
 -spec system_code_change(state(), module(), term(), term()) -> {ok, state()}.
-%% @private
 system_code_change(State, _Module, _OldVsn, _Extra) when is_record(State, state) ->
     % http://www.erlang.org/doc/man/sys.html#Mod:system_code_change-4
     {ok, State}.
 
 -spec system_continue(pid(), [sys:dbg_opt()], state()) -> no_return().
-%% @private
 system_continue(Parent, Debug, State) ->
     % http://www.erlang.org/doc/man/sys.html#Mod:system_continue-3
     loop(Parent, Debug, State).
 
 -spec system_terminate(term(), pid(), list(), state()) -> no_return().
-%% @private
 system_terminate(Reason, _Parent, _Debug, _State) ->
     % http://www.erlang.org/doc/man/sys.html#Mod:system_terminate-4
     exit(Reason).
 
 -spec write_debug(io:device(), term(), term()) -> ok.
-%% @private
 write_debug(Dev, Event, Name) ->
     % called by sys:handle_debug().
     io:format(Dev, "~p event = ~p~n", [Name, Event]).
