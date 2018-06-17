@@ -140,21 +140,21 @@ stop(Category) ->
 %%
 %% Returns:
 %% <ul>
-%% <li>`{sample, SampleRate}' if the event was sampled</li>
-%% <li>`{drop, SampleRate}' if the event was dropped</li>
+%% <li>`{sample, SamplingPercentage}' if the event was sampled</li>
+%% <li>`{drop, SamplingPercentage}' if the event was dropped</li>
 %% </ul>
 %%
-%% `SampleRate' is a floating point number between 0.0 and 1.0 representing
+%% `SamplingPercentage' is a floating point number between 0.0 and 1.0 representing
 %% the percentage of events that were sampled during the last 1000 milliseconds,
 %% <b>including</b> the event reported just now.
 %%
 %% @see ask/3
 %% @see ask/4
--spec ask(Category, EventType) -> {Decision, SampleRate}
+-spec ask(Category, EventType) -> {Decision, SamplingPercentage}
         when Category :: atom(),
              EventType :: term(),
              Decision :: sample | drop,
-             SampleRate :: float().
+             SamplingPercentage :: float().
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
 
@@ -167,7 +167,7 @@ ask(Category, EventType) ->
 %%      <ul>
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
 %%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
-%%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
+%%          <li>`SamplingPercentage': a floating point number between 0.0 and 1.0 representing the percentage
 %%              of events that were sampled during the last 1000 milliseconds, <b>including</b> the event
 %%              reported just now.
 %%          </li>
@@ -190,12 +190,12 @@ ask(Category, EventType) ->
 %%
 %% @see ask/2
 %% @see ask/4
--spec ask(Category, EventType, EventFun | Opts) -> {Decision, SampleRate} | EventFunResult
+-spec ask(Category, EventType, EventFun | Opts) -> {Decision, SamplingPercentage} | EventFunResult
         when Category :: atom(),
              EventType :: term(),
-             EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
+             EventFun :: fun ((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
              Timestamp :: integer(),
-             SampleRate :: float(),
+             SamplingPercentage :: float(),
              Decision :: sample | drop,
              EventFunResult :: term(),
              Opts :: [deigma_event_window:opt()].
@@ -213,7 +213,7 @@ ask(Category, EventType, Opts) ->
 %%      <ul>
 %%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
 %%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
-%%          <li>`SampleRate': a floating point number between 0.0 and 1.0 representing the percentage
+%%          <li>`SamplingPercentage': a floating point number between 0.0 and 1.0 representing the percentage
 %%              of events that were sampled during the last 1000 milliseconds, <b>including</b> the event
 %%              reported just now.
 %%          </li>
@@ -238,9 +238,9 @@ ask(Category, EventType, Opts) ->
 -spec ask(Category, EventType, EventFun, Opts) -> EventFunResult
         when Category :: atom(),
              EventType :: term(),
-             EventFun :: fun ((Timestamp, Decision, SampleRate) -> EventFunResult),
+             EventFun :: fun ((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
              Timestamp :: integer(),
-             SampleRate :: float(),
+             SamplingPercentage :: float(),
              Decision :: sample | drop,
              EventFunResult :: term(),
              Opts :: [deigma_event_window:opt()].
@@ -270,5 +270,5 @@ init([Category]) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-default_ask_fun(_Timestamp, Decision, SampleRate) ->
-    {Decision, SampleRate}.
+default_ask_fun(_Timestamp, Decision, SamplingPercentage) ->
+    {Decision, SamplingPercentage}.

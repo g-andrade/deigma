@@ -65,7 +65,7 @@ run_worker_loop(_Category, _Nr, Parent, NrOfCalls, StartTs,
     Parent ! {worker_result, self(), AdjustedCountPerResult};
 run_worker_loop(Category, Nr, Parent, NrOfCalls, StartTs, Count, CountPerResult) ->
     ActorId = abs(erlang:monotonic_time()) rem ?NR_OF_WORKERS,
-    {Result, SampleRate} = deigma:ask(wowow, 1),
+    {Result, SamplingPercentage} = deigma:ask(wowow, 1),
     %_ = (Count rem 10000 =:= 10) andalso io:format("Stats (~p): ~p~n", [Nr, Stats]),
     UpdatedCountPerResult = maps_increment(Result, +1, CountPerResult),
     run_worker_loop(Category, Nr, Parent, NrOfCalls, StartTs, Count + 1,
@@ -77,8 +77,8 @@ maps_increment(Key, Incr, Map) ->
       fun (Value) -> Value + Incr end,
       Incr, Map).
 
-ask_handler(Decision, SampleRate) ->
-    {Decision, SampleRate}.
+ask_handler(Decision, SamplingPercentage) ->
+    {Decision, SamplingPercentage}.
 
 -ifdef(POST_OTP18).
 maps_update_with(Key, Fun, Init, Map) ->

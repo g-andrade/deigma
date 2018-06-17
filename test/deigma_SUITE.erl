@@ -163,25 +163,25 @@ run_ask_test_recur(Category, NrOfEventTypes, MaxRate, Acc) ->
     after
         Timeout ->
             EventType = rand:uniform(NrOfEventTypes),
-            {Ts, Decision, SampleRate} =
+            {Ts, Decision, SamplingPercentage} =
                 deigma:ask(
                   Category, EventType,
-                  fun (Ts, Decision, SampleRate) ->
-                          {Ts, Decision, SampleRate}
+                  fun (Ts, Decision, SamplingPercentage) ->
+                          {Ts, Decision, SamplingPercentage}
                   end,
                   [{max_rate, MaxRate}]),
-            UpdatedAcc = [{Ts, EventType, Decision, SampleRate} | Acc],
+            UpdatedAcc = [{Ts, EventType, Decision, SamplingPercentage} | Acc],
             run_ask_test_recur(Category, NrOfEventTypes, MaxRate, UpdatedAcc)
     end.
 
 check_ask_test_results(MaxRate, Results) ->
     ResultsPerEventType =
         lists:foldl(
-          fun ({Ts, EventType, Decision, SampleRate}, Acc) ->
+          fun ({Ts, EventType, Decision, SamplingPercentage}, Acc) ->
                   maps_update_with(
                     EventType,
-                    fun (Events) -> [{Ts, Decision, SampleRate} | Events] end,
-                    [{Ts, Decision, SampleRate}],
+                    fun (Events) -> [{Ts, Decision, SamplingPercentage} | Events] end,
+                    [{Ts, Decision, SamplingPercentage}],
                     Acc)
           end,
           #{}, Results),
@@ -200,7 +200,7 @@ check_ask_test_decisions(_MaxRate, [], _Acc, RightDecisions, WrongDecisions) ->
     ct:pal("RightDecisions ~p, WrongDecisions ~p", [RightDecisions, WrongDecisions]),
     ?assert(WrongDecisions / (RightDecisions + WrongDecisions) < 0.01);
 check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDecisions) ->
-    {Ts, Decision, _SampleRate} = Event,
+    {Ts, Decision, _SamplingPercentage} = Event,
     RelevantPrev = relevant_history(Ts, Prev),
     CountPerDecision = count_history_decisions(RelevantPrev),
     PrevSamples = maps:get(sample, CountPerDecision),
@@ -222,14 +222,14 @@ check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDec
 relevant_history(Ts, Prev) ->
     TsFloor = Ts - erlang:convert_time_unit(1, seconds, native),
     lists:takewhile(
-      fun ({EntryTs, _Decision, _SampleRate}) ->
+      fun ({EntryTs, _Decision, _SamplingPercentage}) ->
               EntryTs >= TsFloor
       end,
       Prev).
 
 count_history_decisions(Prev) ->
     lists:foldl(
-      fun ({_Ts, Decision, _SampleRate}, Acc) ->
+      fun ({_Ts, Decision, _SamplingPercentage}, Acc) ->
               maps_update_with(
                 Decision,
                 fun (Val) -> Val + 1 end,
@@ -246,33 +246,33 @@ check_ask_test_rates(Events) ->
 check_ask_test_rates([], _Prev) ->
     ok;
 check_ask_test_rates([Event | Next], Prev) ->
-    {Ts, Decision, SampleRate} = Event,
-    ?assert(SampleRate >= 0 andalso SampleRate =< 1),
+    {Ts, Decision, SamplingPercentage} = Event,
+    ?assert(SamplingPercentage >= 0 andalso SamplingPercentage =< 1),
     RelevantPrev = relevant_history(Ts, Prev),
     CountPerDecision = count_history_decisions(RelevantPrev),
     PrevSamples = maps:get(sample, CountPerDecision),
     PrevDrops = maps:get(drop, CountPerDecision),
     ct:pal("PrevSamples ~p, PrevDrops ~p", [PrevSamples, PrevDrops]),
     Total = PrevSamples + PrevDrops + 1,
-    RealSampleRate =
+    RealSamplingPercentage =
         if Decision =:= sample ->
                (PrevSamples + 1) / Total;
            Decision =:= drop ->
                (PrevSamples / Total)
         end,
-    ?assertEqual(RealSampleRate, SampleRate),
+    ?assertEqual(RealSamplingPercentage, SamplingPercentage),
     check_ask_test_rates(Next, [Event | Prev]).
 
 event_fun({value, Value}) ->
-    fun (_Timestamp, Decision, SampleRate) ->
+    fun (_Timestamp, Decision, SamplingPercentage) ->
             ?assert(lists:member(Decision, [sample, drop])),
-            ?assert(SampleRate >= 0 andalso SampleRate =< 1),
+            ?assert(SamplingPercentage >= 0 andalso SamplingPercentage =< 1),
             Value
     end;
 event_fun({exception, Class, Reason}) ->
-    fun (_Timestamp, Decision, SampleRate) ->
+    fun (_Timestamp, Decision, SamplingPercentage) ->
             ?assert(lists:member(Decision, [sample, drop])),
-            ?assert(SampleRate >= 0 andalso SampleRate =< 1),
+            ?assert(SamplingPercentage >= 0 andalso SamplingPercentage =< 1),
             erlang:raise(Class, Reason, [])
     end.
 

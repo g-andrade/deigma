@@ -8,13 +8,13 @@
 It performs sampling within continuous one second windows\[\*\] based on
 specified rate limits.
 
-The sampling rate is steadily adjusted so that the events that seep
-through are representative of what's happening in the system.
+The sampling percentage is steadily adjusted so that the events that
+seep through are representative of what's happening in the system.
 
-The sampling rate is also exposed in the context of each new event, so
-that whichever other component that later receives the samples can
-perform reasonable guesses of the original population properties with
-limited information.
+The sampling percentage is also exposed in the context of each new
+event, so that whichever other component that later receives the samples
+can perform reasonable guesses of the original population properties
+with limited information.
 
 \[\*\] As far as the [monotonic
 clock](http://erlang.org/doc/apps/erts/time_correction.html#Erlang_Monotonic_Time)
@@ -28,7 +28,7 @@ UDP while minimising the risk of dropped datagrams due to an excessive
 amount of them.
 
 For this, we can downsample the reported metrics while determining the
-real sampling rate using `deigma`.
+real sampling percentage using `deigma`.
 
 ##### 1\. Start a deigma instance
 
@@ -44,16 +44,16 @@ Category = metrics,
 EventType = http_request,
 
 case deigma:ask(Category, EventType) of
-    {sample, SampleRate} ->
-        your_metrics:report(counter, EventType, +1, SampleRate);
-    {drop, _SampleRate} ->
+    {sample, SamplingPercentage} ->
+        your_metrics:report(counter, EventType, +1, SamplingPercentage);
+    {drop, _SamplingPercentage} ->
         ok
 end.
 ```
 
   - [`Category`](#categories) must be an atom
   - [`EventType`](#event_windows) can be any term
-  - `SampleRate` is a floating point number between 0.0 and 1.0
+  - `SamplingPercentage` is a floating point number between 0.0 and 1.0
     representing the percentage of events that were sampled during the
     last 1000 milliseconds, **including** the event reported just now.
   - The rate limit defaults to 100 `EventType` occurences per second
@@ -105,9 +105,9 @@ EventType = http_request,
 MaxRate = 50,
 
 case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
-    {sample, SampleRate} ->
-        your_metrics:report(counter, EventType, +1, SampleRate);
-    {drop, _SampleRate} ->
+    {sample, SamplingPercentage} ->
+        your_metrics:report(counter, EventType, +1, SamplingPercentage);
+    {drop, _SamplingPercentage} ->
         ok
 end.
 ```
@@ -127,9 +127,9 @@ EventType = http_request,
 
 deigma:ask(
     Category, EventType,
-    fun (Timestamp, sample, SampleRate) ->
-            your_metrics:report(counter, EventType, +1, SampleRate);
-        (_Timestamp, drop, _SampleRate) ->
+    fun (Timestamp, sample, SamplingPercentage) ->
+            your_metrics:report(counter, EventType, +1, SamplingPercentage);
+        (_Timestamp, drop, _SamplingPercentage) ->
             ok
     end).
 ```

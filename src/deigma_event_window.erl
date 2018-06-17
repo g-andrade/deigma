@@ -204,8 +204,8 @@ handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
         handle_sampling(WindowSize, SampledCounter, MaxRate),
     UpdatedWindow = queue:in({Now, Decision}, Window),
 
-    SampleRate = UpdatedSampledCounter / UpdatedWindowSize,
-    _ = try EventFun(Now, Decision, SampleRate) of
+    SamplingPercentage = UpdatedSampledCounter / UpdatedWindowSize,
+    _ = try EventFun(Now, Decision, SamplingPercentage) of
             Result ->
                 From ! {Tag, {result, Result}}
         catch
