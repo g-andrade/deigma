@@ -52,14 +52,14 @@ end.
 ```
 
   - [`Category`](#categories) must be an atom
-  - [`EventType`](#event_windows) can be any term
+  - [`EventType`](#event-windows) can be any term
   - `SamplingPercentage` is a floating point number between 0.0 and 1.0
     representing the percentage of events that were sampled during the
     last 1000 milliseconds, **including** the event reported just now.
   - The rate limit defaults to 100 `EventType` occurences per second
-    within a `Category`; it can be [overridden](#rate_limiting).
+    within a `Category`; it can be [overridden](#rate-limiting).
   - The function invoked each time an event gets registered can also be
-    [customized](#custom_event_functions_and_serializibility).
+    [customized](#custom-event-functions-and-serializability).
 
 #### Documentation and Reference
 
@@ -118,8 +118,8 @@ The function invoked upon an event getting registered, within an event
 window, can be customized.
 
 This is useful if you need serializability when handling sampling
-decisions, at the potential expense of making the event window a
-bottleneck.
+decisions and percentages, at the expense of potentially making the
+event window a bottleneck.
 
 ``` erlang
 Category = metrics,
