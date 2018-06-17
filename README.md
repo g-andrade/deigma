@@ -76,15 +76,15 @@ category = :metrics,
 ##### 2\. Sample events
 
 ``` elixir
-category = :metrics,
-event_type = :http_request,
+category = :metrics
+event_type = :http_request
 
 case :deigma.ask(category, event_type) do
     {:sample, sampling_percentage} ->
         your_metrics:report(:counter, event_type, +1, sampling_percentage)
     {:drop, _sampling_percentage} ->
         :ok
-end.
+end
 ```
 
 #### Documentation and Reference
