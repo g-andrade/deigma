@@ -3,21 +3,29 @@
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
 [![](https://travis-ci.org/g-andrade/deigma.png?branch=master)](https://travis-ci.org/g-andrade/deigma)
 
-`deigma` is a library for Erlang/OTP and Elixir that allows you to
-sample events within continuous 1 second windows\[1\] based on rate
-limits.
+`deigma` is an event sampler for for Erlang/OTP and Elixir.
+
+It performs sampling within continuous 1 second windows\[1\] based on
+specified rate limits.
 
 The sampling rate is steadily adjusted so that the events that seep
 through are representative of what's happening in the system.
 
-\[\*\] As far as the monotonic clock resolution goes.
+The sampling rate is also exposed in the context of each new event, so
+that whichever other component that later receives the samples can
+perform reasonable guesses of the original population properties with
+limited information.
+
+\[\*\] As far as the [monotonic
+clock](http://erlang.org/doc/apps/erts/time_correction.html#Erlang_Monotonic_Time)
+resolution goes.
 
 #### Example
 
 There's heavy duty a web service; we want to report metrics on inbound
 http requests to [StatsD](https://github.com/etsy/statsd) service over
-UDP while minimising the risk of dropped datagrams due to too many
-events.
+UDP while minimising the risk of dropped datagrams due to an excessive
+amount of them.
 
 For this, we can downsample the reported metrics and determine the real
 sampling rate using `deigma`.
@@ -29,13 +37,12 @@ Category = metrics,
 {ok, _Pid} = deigma:start(Category).
 ```
 
-##### 2\. Sample events based on a maximum rate
+##### 2\. Sample events
 
 ``` erlang
 Category = metrics,
 EventType = http_request,
-MaxRate = 100,
-case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
+case deigma:ask(Category, EventType) of
     {sample, SampleRate} ->
         your_metrics:report(counter, EventType, +1, SampleRate);
     {drop, _SampleRate} ->
@@ -45,15 +52,20 @@ end.
 
   - [`Category`](#categories) must be an atom
   - [`EventType`](#event_windows) can be any term
-  - [`MaxRate`](#rate_limiting) is the maximum number of events per
-    second we want to sample (defaults to 100)
   - `SampleRate` is a floating point number between 0.0 and 1.0
     representing the percentage of events that were sampled during the
     last 1000 milliseconds, including the event reported just now.
 
+The rate limit defaults to 100 `EventType` occurences per second; it can
+be [overridden](#rate_limiting).
+
+The function invoked each time an event gets registered can also be
+[customized](#custom_event_fun).
+
 #### Documentation and Reference
 
-Documentation is hosted on [HexDocs](https://hexdocs.pm/deigma/).
+Documentation and reference are hosted on
+[HexDocs](https://hexdocs.pm/deigma/).
 
 #### Tested setup
 
@@ -72,7 +84,7 @@ Categories launched under `deigma` can be stopped using `:stop/1`.
 #### On event windows
 
 Within the context of each `Category`, each distinct `EventType` will be
-handled under dedicated event windows which are owned by independent
+handled under dedicated event windows that are owned by independent
 processes.
 
 These processes are created on-demand as new `EventType` values get
@@ -80,10 +92,55 @@ sampled, and stopped after 1000 milliseconds of inactivity.
 
 #### On rate limits
 
-Each time a new event is reported, `MaxRate` is applied according to how
-many events were sampled so far during the previous 1000 milliseconds;
-if the limit has been or is about to be exceeded, the event gets
-dropped.
+Each time a new event is reported, the rate limit is applied according
+to how many events were sampled so far during the previous 1000
+milliseconds; if the limit has been or is about to be exceeded, the
+event gets dropped.
+
+The default rate limit is set to 100 `EventType` occurences per second
+within a `Category`.
+
+It can be overriden using `:ask` options:
+
+``` erlang
+Category = metrics,
+EventType = http_request,
+MaxRate = 50,
+case deigma:ask(Category, EventType, [{max_rate, MaxRate}]) of
+    {sample, SampleRate} ->
+        your_metrics:report(counter, EventType, +1, SampleRate);
+    {drop, _SampleRate} ->
+        ok
+end.
+```
+
+#### On event functions and serializability
+
+The function invoked upon an event getting registered, within an event
+window, can be customized.
+
+This is useful if you need serializability when handling sampling
+decisions, at the potential expense of making the event window a
+bottleneck.
+
+``` erlang
+Category = metrics,
+EventType = http_request,
+deigma:ask(
+    Category, EventType,
+    fun (Timestamp, sample, SampleRate) ->
+            your_metrics:report(counter, EventType, +1, SampleRate);
+        (_Timestamp, drop, _SampleRate) ->
+            ok
+    end).
+```
+
+  - `Timestamp` is the [monotonic
+    timestamp](http://erlang.org/doc/man/erlang.html#monotonic_time-0),
+    in native units, at which the event was registered
+
+In this scenario, whathever your function returns (or throws) will be
+what `deigma:ask` returns (or throws.)
 
 #### License
 
