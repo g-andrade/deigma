@@ -178,7 +178,7 @@ check_ask_test_results(MaxRate, Results) ->
     ResultsPerEventType =
         lists:foldl(
           fun ({Ts, EventType, Decision, SampleRate}, Acc) ->
-                  maps:update_with(
+                  maps_update_with(
                     EventType,
                     fun (Events) -> [{Ts, Decision, SampleRate} | Events] end,
                     [{Ts, Decision, SampleRate}],
@@ -220,7 +220,7 @@ check_ask_test_decisions(MaxRate, [Event | Next], Prev, RightDecisions, WrongDec
     end.
 
 relevant_history(Ts, Prev) ->
-    TsFloor = Ts - erlang:convert_time_unit(1, second, native),
+    TsFloor = Ts - erlang:convert_time_unit(1, seconds, native),
     lists:takewhile(
       fun ({EntryTs, _Decision, _SampleRate}) ->
               EntryTs >= TsFloor
@@ -230,7 +230,7 @@ relevant_history(Ts, Prev) ->
 count_history_decisions(Prev) ->
     lists:foldl(
       fun ({_Ts, Decision, _SampleRate}, Acc) ->
-              maps:update_with(
+              maps_update_with(
                 Decision,
                 fun (Val) -> Val + 1 end,
                 Acc)
@@ -275,3 +275,27 @@ event_fun({exception, Class, Reason}) ->
             ?assert(SampleRate >= 0 andalso SampleRate =< 1),
             erlang:raise(Class, Reason, [])
     end.
+
+-ifdef(POST_OTP18).
+maps_update_with(Key, Fun, Map) ->
+    maps:update_with(Key, Fun, Map).
+
+maps_update_with(Key, Fun, Init, Map) ->
+    maps:update_with(Key, Fun, Init, Map).
+-else.
+maps_update_with(Key, Fun, Map) ->
+    case maps:find(Key, Map) of
+        {ok, Value} ->
+            UpdatedValue = Fun(Value),
+            Map#{ Key := UpdatedValue }
+    end.
+
+maps_update_with(Key, Fun, Init, Map) ->
+    case maps:find(Key, Map) of
+        {ok, Value} ->
+            UpdatedValue = Fun(Value),
+            Map#{ Key := UpdatedValue };
+        error ->
+            Map#{ Key => Init }
+    end.
+-endif.
