@@ -255,7 +255,11 @@ ask(Category, EventType, EventFun, Opts) ->
         -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 %% @private
 init([Category]) ->
-    SupFlags = #{ strategy => rest_for_one },
+    SupFlags =
+        #{ strategy => rest_for_one,
+           intensity => 5,
+           period => 1
+         },
     ChildSpecs =
         [#{ id => proc_reg,
             start => {deigma_proc_reg, start_link, [Category]}
