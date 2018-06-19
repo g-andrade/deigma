@@ -3,7 +3,7 @@
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
 [![](https://travis-ci.org/g-andrade/deigma.png?branch=master)](https://travis-ci.org/g-andrade/deigma)
 
-`deigma` is an event sampler for for Erlang/OTP and Elixir.
+`deigma` is an event sampler for Erlang/OTP and Elixir.
 
 It performs sampling of reported events within continuous one second
 windows\[\*\].

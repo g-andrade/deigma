@@ -6,7 +6,7 @@
 <a target="_parent" href="https://travis-ci.org/g-andrade/deigma" alt="Build Status">
     <img src="https://travis-ci.org/g-andrade/deigma.png?branch=master"/></a>
 
-`deigma' is an event sampler for for Erlang/OTP and Elixir.
+`deigma' is an event sampler for Erlang/OTP and Elixir.
 
 It performs sampling of reported events within continuous one second windows[*].
 
