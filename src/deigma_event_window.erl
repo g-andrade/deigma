@@ -66,6 +66,13 @@
 
 -define(DEFAULT_MAX_RATE, 100).
 
+% From: https://github.com/tomas-abrahamsson/gpb/issues/134
+-ifdef(POST_OTP_20).
+-define(EXC_TRACE(Type, Reason, Stacktrace), Type:Reason:Stacktrace ->).
+-else.
+-define(EXC_TRACE(Type, Reason, Stacktrace), Type:Reason -> Stacktrace = erlang:get_stacktrace(), ).
+-endif.
+
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
 %%-------------------------------------------------------------------
@@ -209,8 +216,7 @@ handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
             Result ->
                 From ! {Tag, {result, Result}}
         catch
-            Class:Reason ->
-                Stacktrace = erlang:get_stacktrace(),
+            ?EXC_TRACE(Class, Reason, Stacktrace)
                 From ! {Tag, {exception, Class, Reason, Stacktrace}}
         end,
 
