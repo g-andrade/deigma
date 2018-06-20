@@ -212,18 +212,34 @@ handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
     UpdatedWindow = queue:in({Now, Decision}, Window),
 
     SamplingPercentage = UpdatedSampledCounter / UpdatedWindowSize,
-    _ = try EventFun(Now, Decision, SamplingPercentage) of
-            Result ->
-                From ! {Tag, {result, Result}}
-        catch
-            ?EXC_TRACE(Class, Reason, Stacktrace)
-                From ! {Tag, {exception, Class, Reason, Stacktrace}}
-        end,
+    _ = call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage),
 
     State#state{ window = UpdatedWindow,
                  window_size = UpdatedWindowSize,
                  sampled_counter = UpdatedSampledCounter
                }.
+
+-compile({inline,{call_event_fun,6}}).
+-ifdef(POST_OTP_20).
+call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
+    try EventFun(Now, Decision, SamplingPercentage) of
+        Result ->
+            From ! {Tag, {result, Result}}
+    catch
+        Class:Reason:Stacktrace ->
+            From ! {Tag, {exception, Class, Reason, Stacktrace}}
+    end.
+-else.
+call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
+    try EventFun(Now, Decision, SamplingPercentage) of
+        Result ->
+            From ! {Tag, {result, Result}}
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            From ! {Tag, {exception, Class, Reason, Stacktrace}}
+    end.
+-endif.
 
 purge_expired(Now, State) ->
     Window = State#state.window,
