@@ -12,6 +12,8 @@ endif
 
 .PHONY: all build clean check dialyzer xref test travis_test cover console microbenchmark doc publish
 
+.NOTPARALLEL: check test
+
 all: build
 
 build: $(REBAR3)
