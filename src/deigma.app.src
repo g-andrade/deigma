@@ -11,5 +11,7 @@
   {modules, []},
 
   {licenses, ["MIT"]},
-  {links, [{"Github", "https://github.com/g-andrade/deigma"}]}
+  {links, [{"GitHub", "https://github.com/g-andrade/deigma"},
+           {"GitLab", "https://gitlab.com/g-andrade/deigma"}
+          ]}
  ]}.
