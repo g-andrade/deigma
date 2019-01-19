@@ -1,6 +1,6 @@
 {application, deigma,
  [{description, "Continuous event sampler"},
-  {vsn, git},
+  {vsn, "git"},
   {registered, []},
   {mod, {deigma_app, []}},
   {applications,
@@ -10,7 +10,6 @@
   {env,[]},
   {modules, []},
 
-  {maintainers, ["Guilherme Andrade"]},
   {licenses, ["MIT"]},
   {links, [{"Github", "https://github.com/g-andrade/deigma"}]}
  ]}.
