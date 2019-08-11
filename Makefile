@@ -4,7 +4,7 @@ ifeq ($(wildcard rebar3),rebar3)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
-ifdef RUNNING_ON_TRAVIS
+ifdef RUNNING_ON_CI
 REBAR3 = ./rebar3
 else
 REBAR3 ?= $(shell test -e `which rebar3` 2>/dev/null && which rebar3 || echo "./rebar3")
@@ -14,7 +14,7 @@ ifeq ($(REBAR3),)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
-.PHONY: all build clean check dialyzer xref test travis_test cover console microbenchmark doc publish
+.PHONY: all build clean check dialyzer xref test ci_test cover console microbenchmark doc publish
 
 .NOTPARALLEL: check test
 
@@ -41,8 +41,8 @@ xref: $(REBAR3)
 test: $(REBAR3)
 	@$(REBAR3) as test ct
 
-travis_test: $(REBAR3)
-	@$(REBAR3) as travis_test ct
+ci_test: $(REBAR3)
+	@$(REBAR3) as ci_test ct
 
 cover: test
 	@$(REBAR3) as test cover

@@ -23,7 +23,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--ifdef(RUNNING_ON_TRAVIS).
+-ifdef(RUNNING_ON_CI).
 -define(ASK_TEST_DURATION, (timer:seconds(3))).
 -else.
 -define(ASK_TEST_DURATION, (timer:seconds(5))).
