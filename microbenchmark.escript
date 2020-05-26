@@ -80,16 +80,5 @@ maps_increment(Key, Incr, Map) ->
 ask_handler(Decision, SamplingPercentage) ->
     {Decision, SamplingPercentage}.
 
--ifdef(POST_OTP18).
 maps_update_with(Key, Fun, Init, Map) ->
     maps:update_with(Key, Fun, Init, Map).
--else.
-maps_update_with(Key, Fun, Init, Map) ->
-    case maps:find(Key, Map) of
-        {ok, Value} ->
-            UpdatedValue = Fun(Value),
-            Map#{ Key := UpdatedValue };
-        error ->
-            Map#{ Key => Init }
-    end.
--endif.

@@ -276,26 +276,8 @@ event_fun({exception, Class, Reason}) ->
             erlang:raise(Class, Reason, [])
     end.
 
--ifdef(POST_OTP18).
 maps_update_with(Key, Fun, Map) ->
     maps:update_with(Key, Fun, Map).
 
 maps_update_with(Key, Fun, Init, Map) ->
     maps:update_with(Key, Fun, Init, Map).
--else.
-maps_update_with(Key, Fun, Map) ->
-    case maps:find(Key, Map) of
-        {ok, Value} ->
-            UpdatedValue = Fun(Value),
-            Map#{ Key := UpdatedValue }
-    end.
-
-maps_update_with(Key, Fun, Init, Map) ->
-    case maps:find(Key, Map) of
-        {ok, Value} ->
-            UpdatedValue = Fun(Value),
-            Map#{ Key := UpdatedValue };
-        error ->
-            Map#{ Key => Init }
-    end.
--endif.

@@ -144,16 +144,5 @@ code_change(_OldVsn, #state{} = State, _Extra) ->
 table_name(Category) ->
     deigma_util:proc_name(?MODULE, Category).
 
--ifdef(POST_OTP18).
 maps_take(Key, Map) ->
     maps:take(Key, Map).
--else.
-maps_take(Key, Map) ->
-    case maps:find(Key, Map) of
-        {ok, Value} ->
-            UpdatedMap = maps:remove(Key, Map),
-            {Value, UpdatedMap};
-        error ->
-            error
-    end.
--endif.
