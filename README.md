@@ -1,7 +1,7 @@
 # deigma
 
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
-[![](https://travis-ci.org/g-andrade/deigma.png?branch=master)](https://travis-ci.org/g-andrade/deigma)
+[![](https://github.com/g-andrade/deigma/workflows/build/badge.svg)](https://github.com/g-andrade/deigma/actions?query=workflow%3Abuild)
 
 `deigma` is an event sampler for Erlang/OTP and Elixir.
 
@@ -94,7 +94,7 @@ Documentation and reference are hosted on
 
 #### Tested setup
 
-  - Erlang/OTP 19 or higher
+  - Erlang/OTP 22 or higher
   - rebar3
 
 #### Categories

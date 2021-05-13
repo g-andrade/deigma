@@ -3,8 +3,8 @@
 
 <a target="_parent" href="https://hex.pm/packages/deigma" alt="Hex.pm Package">
     <img src="https://img.shields.io/hexpm/v/deigma.svg?style=flat"/></a>
-<a target="_parent" href="https://travis-ci.org/g-andrade/deigma" alt="Build Status">
-    <img src="https://travis-ci.org/g-andrade/deigma.png?branch=master"/></a>
+<a target="_parent" href="https://github.com/g-andrade/deigma/actions?query=workflow%3Abuild" alt="CI Build Status">
+    <img src="https://github.com/g-andrade/deigma/workflows/build/badge.svg"/></a>
 
 `deigma' is an event sampler for Erlang/OTP and Elixir.
 
@@ -97,7 +97,7 @@ Documentation and reference are hosted on <a target="_parent" href="https://hexd
 <h4>Tested setup</h4>
 
 <ul>
-<li>Erlang/OTP 19 or higher</li>
+<li>Erlang/OTP 22 or higher</li>
 <li>rebar3</li>
 </ul>
 
