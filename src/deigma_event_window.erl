@@ -66,13 +66,6 @@
 
 -define(DEFAULT_MAX_RATE, 100).
 
-% From: https://github.com/tomas-abrahamsson/gpb/issues/134
--ifdef(POST_OTP_20).
--define(EXC_TRACE(Type, Reason, Stacktrace), Type:Reason:Stacktrace ->).
--else.
--define(EXC_TRACE(Type, Reason, Stacktrace), Type:Reason -> Stacktrace = erlang:get_stacktrace(), ).
--endif.
-
 %%-------------------------------------------------------------------
 %% Record and Type Definitions
 %%-------------------------------------------------------------------
@@ -220,7 +213,6 @@ handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
                }.
 
 -compile({inline,{call_event_fun,6}}).
--ifdef(POST_OTP_20).
 call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
     try EventFun(Now, Decision, SamplingPercentage) of
         Result ->
@@ -229,17 +221,6 @@ call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
         Class:Reason:Stacktrace ->
             From ! {Tag, {exception, Class, Reason, Stacktrace}}
     end.
--else.
-call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
-    try EventFun(Now, Decision, SamplingPercentage) of
-        Result ->
-            From ! {Tag, {result, Result}}
-    catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            From ! {Tag, {exception, Class, Reason, Stacktrace}}
-    end.
--endif.
 
 purge_expired(Now, State) ->
     Window = State#state.window,
