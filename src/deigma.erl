@@ -113,11 +113,13 @@ See also `start_link/1` and `start/1`.
 -spec child_spec(Category) -> supervisor:child_spec() when
     Category :: atom().
 child_spec(Category) ->
-    #{
-        id => {deigma, Category},
-        start => {?MODULE, start_link, [Category]},
-        type => supervisor
-    }.
+    deigma_util:dialyzer_opaque_term(
+        #{
+            id => {deigma, Category},
+            start => {?MODULE, start_link, [Category]},
+            type => supervisor
+        }
+    ).
 
 -ifdef(E48).
 -doc """

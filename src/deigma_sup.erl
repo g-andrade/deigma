@@ -62,7 +62,7 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
--spec start_child(list()) -> {ok, pid()}.
+-spec start_child(list()) -> {ok, pid()} | {error, term()}.
 start_child(Args) ->
     supervisor:start_child(?SERVER, Args).
 

@@ -28,7 +28,10 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([proc_name/2]).
+-export([
+    proc_name/2,
+    dialyzer_opaque_term/1
+]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -41,3 +44,11 @@ proc_name(Module, PoolId) ->
             "." ++
             atom_to_list(PoolId)
     ).
+
+%% Identity function that launders its argument's type to `term()'. Routing a
+%% value through it stops Dialyzer from inferring an over-specific success type,
+%% which would otherwise trip `underspecs' against a deliberately broad public
+%% spec (e.g. `child_spec/1' returning the whole `supervisor:child_spec()').
+-spec dialyzer_opaque_term(term()) -> term().
+dialyzer_opaque_term(Term) ->
+    Term.

@@ -89,7 +89,7 @@
     window_size = 0 :: non_neg_integer(),
     sampled_counter = 0 :: non_neg_integer()
 }).
--type state() :: state().
+-type state() :: #state{}.
 
 -type event() :: {timestamp(), decision()}.
 -type timestamp() :: integer().

@@ -128,23 +128,21 @@ custom_event_fun_test(_Config) ->
 
 crashing_event_fun_test(_Config) ->
     {ok, _Pid} = deigma:start(crashing_event_fun_test),
-    ?assertMatch(
+    ?assertThrow(
         yes,
-        catch deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, throw, yes}))
+        deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, throw, yes}))
     ),
-    ?assertMatch(
+    ?assertThrow(
         no,
-        catch deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, throw, no}))
+        deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, throw, no}))
     ),
-    ?assertMatch(
-        {'EXIT', {its_working, _}},
-        catch deigma:ask(
-            crashing_event_fun_test, foobar, event_fun({exception, error, its_working})
-        )
+    ?assertError(
+        its_working,
+        deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, error, its_working}))
     ),
-    ?assertMatch(
-        {'EXIT', oh_my},
-        catch deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, exit, oh_my}))
+    ?assertExit(
+        oh_my,
+        deigma:ask(crashing_event_fun_test, foobar, event_fun({exception, exit, oh_my}))
     ),
     ok = deigma:stop(crashing_event_fun_test).
 
@@ -285,10 +283,10 @@ check_ask_test_rates([Event | Next], Prev) ->
     ct:pal("PrevSamples ~p, PrevDrops ~p", [PrevSamples, PrevDrops]),
     Total = PrevSamples + PrevDrops + 1,
     RealSamplingPercentage =
-        if
-            Decision =:= sample ->
+        case Decision of
+            sample ->
                 (PrevSamples + 1) / Total;
-            Decision =:= drop ->
+            drop ->
                 (PrevSamples / Total)
         end,
     ?assertEqual(RealSamplingPercentage, SamplingPercentage),
