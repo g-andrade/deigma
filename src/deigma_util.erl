@@ -37,6 +37,7 @@
 -spec proc_name(module(), atom()) -> atom().
 proc_name(Module, PoolId) ->
     list_to_atom(
-      atom_to_list(Module)
-      ++ "."
-      ++ atom_to_list(PoolId)).
+        atom_to_list(Module) ++
+            "." ++
+            atom_to_list(PoolId)
+    ).

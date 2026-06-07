@@ -30,37 +30,41 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/1,
-    register/3,
-    whereis/2
-   ]).
+    [
+        start_link/1,
+        register/3,
+        whereis/2
+    ]
+).
 
 -ignore_xref(
-   [start_link/1
-   ]).
+    [start_link/1]
+).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
 %% ------------------------------------------------------------------
 
 -export(
-   [init/1,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2,
-    terminate/2,
-    code_change/3
-   ]).
+    [
+        init/1,
+        handle_call/3,
+        handle_cast/2,
+        handle_info/2,
+        terminate/2,
+        code_change/3
+    ]
+).
 
 %% ------------------------------------------------------------------
 %% Record and Type Definitions
 %% ------------------------------------------------------------------
 
 -record(state, {
-          category :: atom(),
-          table :: ets:tab(),
-          monitors :: #{ reference() => term() }
-         }).
+    category :: atom(),
+    table :: ets:tab(),
+    monitors :: #{reference() => term()}
+}).
 -type state() :: #state{}.
 
 %% ------------------------------------------------------------------
@@ -70,7 +74,7 @@
 -spec start_link(atom()) -> {ok, pid()}.
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
-    gen_server:start_link({local,Server}, ?MODULE, [Category], []).
+    gen_server:start_link({local, Server}, ?MODULE, [Category], []).
 
 -spec register(atom(), term(), pid()) -> ok | {error, {already_registered, pid()}}.
 register(Category, Name, Pid) ->
@@ -92,25 +96,26 @@ whereis(Category, Name) ->
 -spec init([atom(), ...]) -> {ok, state()}.
 init([Category]) ->
     Table = table_name(Category),
-    TableOpts = [named_table, protected, {read_concurrency,true}],
+    TableOpts = [named_table, protected, {read_concurrency, true}],
     _ = ets:new(Table, TableOpts),
-    {ok, #state{ category = Category, table = Table, monitors = #{} }}.
+    {ok, #state{category = Category, table = Table, monitors = #{}}}.
 
--spec handle_call(term(), {pid(),reference()}, state())
-        -> {reply, Reply, state()} |
-           {stop, unexpected_call, state()}
-    when Reply :: ok | {error, {already_registered,pid()}}.
+-spec handle_call(term(), {pid(), reference()}, state()) ->
+    {reply, Reply, state()}
+    | {stop, unexpected_call, state()}
+when
+    Reply :: ok | {error, {already_registered, pid()}}.
 handle_call({register, Name, Pid}, _From, State) ->
     Table = State#state.table,
     case ets:lookup(Table, Name) of
         [{_, ExistingPid}] ->
             {reply, {error, {already_registered, ExistingPid}}, State};
         [] ->
-            ets:insert(Table, {Name,Pid}),
+            ets:insert(Table, {Name, Pid}),
             NewMonitor = monitor(process, Pid),
             Monitors = State#state.monitors,
-            UpdatedMonitors = Monitors#{ NewMonitor => Name },
-            UpdatedState = State#state{ monitors = UpdatedMonitors },
+            UpdatedMonitors = Monitors#{NewMonitor => Name},
+            UpdatedState = State#state{monitors = UpdatedMonitors},
             {reply, ok, UpdatedState}
     end;
 handle_call(_Call, _From, State) ->
@@ -120,14 +125,14 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Cast, State) ->
     {stop, unexpected_cast, State}.
 
--spec handle_info(term(), state())
-        -> {noreply, state()} |
-           {stop, unexpected_info, state()}.
+-spec handle_info(term(), state()) ->
+    {noreply, state()}
+    | {stop, unexpected_info, state()}.
 handle_info({'DOWN', Ref, process, _Pid, _Reason}, State) ->
     Monitors = State#state.monitors,
     {Name, UpdatedMonitors} = maps_take(Ref, Monitors),
     [_] = ets:take(State#state.table, Name),
-    UpdatedState = State#state{ monitors = UpdatedMonitors },
+    UpdatedState = State#state{monitors = UpdatedMonitors},
     {noreply, UpdatedState};
 handle_info(_Info, State) ->
     {stop, unexpected_info, State}.

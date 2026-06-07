@@ -47,7 +47,7 @@
 -spec start_link(atom()) -> {ok, pid()} | {error, term()}.
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
-    supervisor:start_link({local,Server}, ?MODULE, [Category]).
+    supervisor:start_link({local, Server}, ?MODULE, [Category]).
 
 -spec start_child(atom(), list()) -> {ok, pid()} | {error, term()}.
 start_child(Category, Args) ->
@@ -58,14 +58,16 @@ start_child(Category, Args) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([atom(), ...])
-        -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
+-spec init([atom(), ...]) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 init([Category]) ->
-    SupFlags = #{ strategy => simple_one_for_one },
+    SupFlags = #{strategy => simple_one_for_one},
     ChildSpecs =
-        [#{ id => event_window,
-            start => {deigma_event_window, start_link, [Category]},
-            restart => temporary
-          }
+        [
+            #{
+                id => event_window,
+                start => {deigma_event_window, start_link, [Category]},
+                restart => temporary
+            }
         ],
     {ok, {SupFlags, ChildSpecs}}.

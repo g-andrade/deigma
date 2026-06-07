@@ -39,32 +39,36 @@ overview, configuration and examples.
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/1,
-    child_spec/1,
-    start/1,
-    stop/1,
-    ask/2,
-    ask/3,
-    ask/4
-   ]).
+    [
+        start_link/1,
+        child_spec/1,
+        start/1,
+        stop/1,
+        ask/2,
+        ask/3,
+        ask/4
+    ]
+).
 
 -ignore_xref(
-   [start_link/1,
-    child_spec/1,
-    start/1,
-    stop/1,
-    ask/2,
-    ask/3,
-    ask/4
-   ]).
+    [
+        start_link/1,
+        child_spec/1,
+        start/1,
+        stop/1,
+        ask/2,
+        ask/3,
+        ask/4
+    ]
+).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Exports
 %% ------------------------------------------------------------------
 
 -export(
-   [init/1
-   ]).
+    [init/1]
+).
 
 %% ------------------------------------------------------------------
 %% Record and Type Definitions
@@ -90,11 +94,11 @@ Starts a deigma instance named `Category` under your own supervisor.
 See also `child_spec/1` and `start/1`.
 """.
 -endif.
--spec start_link(Category) -> {ok, pid()} | {error, term()}
-        when Category :: atom().
+-spec start_link(Category) -> {ok, pid()} | {error, term()} when
+    Category :: atom().
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
-    supervisor:start_link({local,Server}, ?MODULE, [Category]).
+    supervisor:start_link({local, Server}, ?MODULE, [Category]).
 
 -ifdef(E48).
 -doc """
@@ -106,13 +110,14 @@ under your own supervisor.
 See also `start_link/1` and `start/1`.
 """.
 -endif.
--spec child_spec(Category) -> supervisor:child_spec()
-        when Category :: atom().
+-spec child_spec(Category) -> supervisor:child_spec() when
+    Category :: atom().
 child_spec(Category) ->
-    #{ id => {deigma, Category},
-       start => {?MODULE, start_link, [Category]},
-       type => supervisor
-     }.
+    #{
+        id => {deigma, Category},
+        start => {?MODULE, start_link, [Category]},
+        type => supervisor
+    }.
 
 -ifdef(E48).
 -doc """
@@ -123,8 +128,8 @@ Starts a deigma instance named `Category` under the `deigma` application.
 See also `stop/1`, `start_link/1` and `child_spec/1`.
 """.
 -endif.
--spec start(Category) -> {ok, pid()} | {error, term()}
-        when Category :: atom().
+-spec start(Category) -> {ok, pid()} | {error, term()} when
+    Category :: atom().
 start(Category) ->
     deigma_sup:start_child([Category]).
 
@@ -138,16 +143,18 @@ application.
 See also `start/1`.
 """.
 -endif.
--spec stop(Category) -> ok | {error, not_started}
-        when Category :: atom().
+-spec stop(Category) -> ok | {error, not_started} when
+    Category :: atom().
 stop(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     try gen_server:stop(Server, shutdown, infinity) of
         ok -> ok
     catch
-        exit:Reason when Reason =:= noproc;
-                         Reason =:= normal;
-                         Reason =:= shutdown ->
+        exit:Reason when
+            Reason =:= noproc;
+            Reason =:= normal;
+            Reason =:= shutdown
+        ->
             {error, not_started}
     end.
 
@@ -170,11 +177,11 @@ the percentage of events that were sampled during the last 1000 milliseconds,
 See also `ask/3` and `ask/4`.
 """.
 -endif.
--spec ask(Category, EventType) -> {Decision, SamplingPercentage}
-        when Category :: atom(),
-             EventType :: term(),
-             Decision :: sample | drop,
-             SamplingPercentage :: float().
+-spec ask(Category, EventType) -> {Decision, SamplingPercentage} when
+    Category :: atom(),
+    EventType :: term(),
+    Decision :: sample | drop,
+    SamplingPercentage :: float().
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
 
@@ -204,15 +211,17 @@ throws). When called with `Opts`, returns the same as `ask/2`.
 See also `ask/2` and `ask/4`.
 """.
 -endif.
--spec ask(Category, EventType, EventFun | Opts) -> {Decision, SamplingPercentage} | EventFunResult
-        when Category :: atom(),
-             EventType :: term(),
-             EventFun :: fun ((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
-             Timestamp :: integer(),
-             SamplingPercentage :: float(),
-             Decision :: sample | drop,
-             EventFunResult :: term(),
-             Opts :: [ask_opt()].
+-spec ask(Category, EventType, EventFun | Opts) ->
+    {Decision, SamplingPercentage} | EventFunResult
+when
+    Category :: atom(),
+    EventType :: term(),
+    EventFun :: fun((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
+    Timestamp :: integer(),
+    SamplingPercentage :: float(),
+    Decision :: sample | drop,
+    EventFunResult :: term(),
+    Opts :: [ask_opt()].
 ask(Category, EventType, EventFun) when is_function(EventFun) ->
     ask(Category, EventType, EventFun, []);
 ask(Category, EventType, Opts) ->
@@ -229,15 +238,15 @@ The arguments are as described in `ask/3`. Returns (or throws) whatever
 See also `ask/2` and `ask/3`.
 """.
 -endif.
--spec ask(Category, EventType, EventFun, Opts) -> EventFunResult
-        when Category :: atom(),
-             EventType :: term(),
-             EventFun :: fun ((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
-             Timestamp :: integer(),
-             SamplingPercentage :: float(),
-             Decision :: sample | drop,
-             EventFunResult :: term(),
-             Opts :: [ask_opt()].
+-spec ask(Category, EventType, EventFun, Opts) -> EventFunResult when
+    Category :: atom(),
+    EventType :: term(),
+    EventFun :: fun((Timestamp, Decision, SamplingPercentage) -> EventFunResult),
+    Timestamp :: integer(),
+    SamplingPercentage :: float(),
+    Decision :: sample | drop,
+    EventFunResult :: term(),
+    Opts :: [ask_opt()].
 ask(Category, EventType, EventFun, Opts) ->
     deigma_event_window:ask(Category, EventType, EventFun, Opts).
 
@@ -248,22 +257,27 @@ ask(Category, EventType, EventFun, Opts) ->
 -ifdef(E48).
 -doc false.
 -endif.
--spec init([atom(), ...])
-        -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
+-spec init([atom(), ...]) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 init([Category]) ->
     SupFlags =
-        #{ strategy => rest_for_one,
-           intensity => 5,
-           period => 1
-         },
+        #{
+            strategy => rest_for_one,
+            intensity => 5,
+            period => 1
+        },
     ChildSpecs =
-        [#{ id => proc_reg,
-            start => {deigma_proc_reg, start_link, [Category]}
-          },
-         #{ id => event_windows,
-            start => {deigma_event_window_sup, start_link, [Category]},
-            type => supervisor
-          }],
+        [
+            #{
+                id => proc_reg,
+                start => {deigma_proc_reg, start_link, [Category]}
+            },
+            #{
+                id => event_windows,
+                start => {deigma_event_window_sup, start_link, [Category]},
+                type => supervisor
+            }
+        ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% ------------------------------------------------------------------

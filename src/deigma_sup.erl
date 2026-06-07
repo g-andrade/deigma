@@ -30,21 +30,23 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_link/0,
-    start_child/1
-   ]).
+    [
+        start_link/0,
+        start_child/1
+    ]
+).
 
 -ignore_xref(
-   [start_link/0
-   ]).
+    [start_link/0]
+).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Exports
 %% ------------------------------------------------------------------
 
 -export(
-   [init/1
-   ]).
+    [init/1]
+).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -70,11 +72,14 @@ start_child(Args) ->
 
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
 init([]) ->
-    SupFlags = #{ strategy => simple_one_for_one },
+    SupFlags = #{strategy => simple_one_for_one},
     ChildSpecs =
-        [#{ id => deigma,
-            start => {deigma, start_link, []},
-            restart => temporary,
-            type => supervisor
-          }],
+        [
+            #{
+                id => deigma,
+                start => {deigma, start_link, []},
+                restart => temporary,
+                type => supervisor
+            }
+        ],
     {ok, {SupFlags, ChildSpecs}}.

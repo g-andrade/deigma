@@ -31,41 +31,50 @@
 %%-------------------------------------------------------------------
 
 -export(
-   [start_link/2,
-    ask/4
-   ]).
+    [
+        start_link/2,
+        ask/4
+    ]
+).
 
 -ignore_xref(
-   [start_link/2
-   ]).
+    [start_link/2]
+).
 
 %%-------------------------------------------------------------------
 %% OTP Exports
 %%-------------------------------------------------------------------
 
 -export(
-   [init/1,
-    system_code_change/4,
-    system_continue/3,
-    system_terminate/4,
-    write_debug/3
-   ]).
+    [
+        init/1,
+        system_code_change/4,
+        system_continue/3,
+        system_terminate/4,
+        write_debug/3
+    ]
+).
 
 -ignore_xref(
-   [init/1,
-    system_code_change/4,
-    system_continue/3,
-    system_terminate/4,
-    write_debug/3
-   ]).
+    [
+        init/1,
+        system_code_change/4,
+        system_continue/3,
+        system_terminate/4,
+        write_debug/3
+    ]
+).
 
 %%-------------------------------------------------------------------
 %% Macro Definitions
 %%-------------------------------------------------------------------
 
--define(time_span(), 1). % in seconds
--define(ms_time_span(), 1000). % in milliseconds
--define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))). % in native units
+% in seconds
+-define(time_span(), 1).
+% in milliseconds
+-define(ms_time_span(), 1000).
+% in native units
+-define(native_time_span(), (erlang:convert_time_unit(?time_span(), seconds, native))).
 
 -define(DEFAULT_MAX_RATE, 100).
 
@@ -74,12 +83,12 @@
 %%-------------------------------------------------------------------
 
 -record(state, {
-          category :: atom(),
-          event_type :: term(),
-          window = queue:new() :: queue:queue(event()),
-          window_size = 0 :: non_neg_integer(),
-          sampled_counter = 0 :: non_neg_integer()
-         }).
+    category :: atom(),
+    event_type :: term(),
+    window = queue:new() :: queue:queue(event()),
+    window_size = 0 :: non_neg_integer(),
+    sampled_counter = 0 :: non_neg_integer()
+}).
 -type state() :: state().
 
 -type event() :: {timestamp(), decision()}.
@@ -94,8 +103,8 @@
 start_link(Category, EventType) ->
     proc_lib:start_link(?MODULE, init, [{self(), [Category, EventType]}]).
 
--spec ask(atom(), term(), fun ((integer(), decision(), float())
-        -> term()), [deigma:ask_opt()]) -> term() | no_return().
+-spec ask(atom(), term(), fun((integer(), decision(), float()) -> term()), [deigma:ask_opt()]) ->
+    term() | no_return().
 ask(Category, EventType, EventFun, Opts) ->
     MaxRate = proplists:get_value(max_rate, Opts, ?DEFAULT_MAX_RATE),
     Pid = lookup_or_start(Category, EventType),
@@ -129,7 +138,7 @@ init({Parent, [Category, EventType]}) ->
     case deigma_proc_reg:register(Category, Server, self()) of
         ok ->
             proc_lib:init_ack(Parent, {ok, self()}),
-            State = #state{ category = Category, event_type = EventType },
+            State = #state{category = Category, event_type = EventType},
             loop(Parent, Debug, State);
         {error, {already_registered, Pid}} ->
             proc_lib:init_ack(Parent, {error, {already_started, Pid}}),
@@ -186,9 +195,8 @@ loop(Parent, Debug, State) ->
             Now = erlang:monotonic_time(),
             UpdatedState = purge_expired(Now, State),
             handle_message(Now, Msg, Parent, Debug, UpdatedState)
-    after
-        ?ms_time_span() ->
-            exit(normal)
+    after ?ms_time_span() ->
+        exit(normal)
     end.
 
 handle_message(_Now, {system, From, Request}, Parent, Debug, State) ->
@@ -210,12 +218,13 @@ handle_nonsystem_msg(Now, {ask, From, Tag, EventFun, MaxRate}, State) ->
     SamplingPercentage = UpdatedSampledCounter / UpdatedWindowSize,
     _ = call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage),
 
-    State#state{ window = UpdatedWindow,
-                 window_size = UpdatedWindowSize,
-                 sampled_counter = UpdatedSampledCounter
-               }.
+    State#state{
+        window = UpdatedWindow,
+        window_size = UpdatedWindowSize,
+        sampled_counter = UpdatedSampledCounter
+    }.
 
--compile({inline,{call_event_fun,6}}).
+-compile({inline, {call_event_fun, 6}}).
 call_event_fun(From, Tag, EventFun, Now, Decision, SamplingPercentage) ->
     try EventFun(Now, Decision, SamplingPercentage) of
         Result ->
@@ -233,10 +242,10 @@ purge_expired(Now, State) ->
     {UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter} =
         purge_expired(TimeFloor, Window, WindowSize, SampledCounter),
     State#state{
-      window = UpdatedWindow,
-      window_size = UpdatedWindowSize,
-      sampled_counter = UpdatedSampledCounter
-     }.
+        window = UpdatedWindow,
+        window_size = UpdatedWindowSize,
+        sampled_counter = UpdatedSampledCounter
+    }.
 
 purge_expired(TimeFloor, Window, WindowSize, SampledCounter) ->
     case queue:peek(Window) of
@@ -247,10 +256,12 @@ purge_expired(TimeFloor, Window, WindowSize, SampledCounter) ->
                 sample ->
                     UpdatedSampledCounter = SampledCounter - 1,
                     purge_expired(
-                      TimeFloor, UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter);
+                        TimeFloor, UpdatedWindow, UpdatedWindowSize, UpdatedSampledCounter
+                    );
                 drop ->
                     purge_expired(
-                      TimeFloor, UpdatedWindow, UpdatedWindowSize, SampledCounter)
+                        TimeFloor, UpdatedWindow, UpdatedWindowSize, SampledCounter
+                    )
             end;
         _ ->
             {Window, WindowSize, SampledCounter}
