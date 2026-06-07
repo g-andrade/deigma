@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- support for OTP 25, 26, 27, 28 and 29
+- `ex_doc`-based documentation with EEP-48 (`-moduledoc`/`-doc`) attributes
+- dev tooling: `erlfmt`, `rebar3_hank` and `elvis` (via `rebar3_lint`)
+
+### Changed
+
+- CI to GitHub Actions with an OTP 24-29 matrix (replacing the container build)
+- build system to the current rebar3-based Makefile / `rebar.config`
+
+### Removed
+
+- the microbenchmark escript
+- the maintenance notice (the library is maintained again)
+
 ## [1.2.0] - 2021-05-13
 ### Added
 - OTP 24 to CI targets

@@ -1,10 +1,8 @@
 # deigma
 
-**This library is not under active maintenance; if you'd like to perform
-maintenance yourself, feel free to open an issue requesting access.**
-
 [![](https://img.shields.io/hexpm/v/deigma.svg?style=flat)](https://hex.pm/packages/deigma)
-[![](https://github.com/g-andrade/deigma/workflows/build/badge.svg)](https://github.com/g-andrade/deigma/actions?query=workflow%3Abuild)
+[![](https://github.com/g-andrade/deigma/actions/workflows/ci.yml/badge.svg)](https://github.com/g-andrade/deigma/actions/workflows/ci.yml)
+[![Erlang Versions](https://img.shields.io/badge/Supported%20Erlang%2FOTP-24%20to%2029-blue)](https://www.erlang.org)
 
 `deigma` is an event sampler for Erlang/OTP and Elixir.
 
@@ -97,7 +95,7 @@ Documentation and reference are hosted on
 
 #### Tested setup
 
-  - Erlang/OTP 22 or higher
+  - Erlang/OTP 24 or higher
   - rebar3
 
 #### Categories
@@ -174,7 +172,7 @@ what `deigma:ask` returns (or throws.)
 
 MIT License
 
-Copyright (c) 2018-2022 Guilherme Andrade
+Copyright (c) 2018-2026 Guilherme Andrade
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
