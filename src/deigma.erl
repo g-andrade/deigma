@@ -21,6 +21,19 @@
 -module(deigma).
 -behaviour(supervisor).
 
+-ifdef(E48).
+-moduledoc """
+Continuous event sampler for Erlang/OTP and Elixir.
+
+`deigma` samples reported events within continuous one-second windows, steadily
+adjusting the sampling percentage so the events that seep through stay
+representative of what's happening in the system while honouring rate limits.
+The sampling percentage is exposed alongside each event so downstream consumers
+can reason about the original population. See the [README](readme.html) for an
+overview, configuration and examples.
+""".
+-endif.
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -57,6 +70,9 @@
 %% Record and Type Definitions
 %% ------------------------------------------------------------------
 
+-ifdef(E48).
+-doc "An option accepted by `ask/3` and `ask/4`.".
+-endif.
 -type ask_opt() ::
     {max_rate, non_neg_integer() | infinity}.
 -export_type([ask_opt/0]).
@@ -65,28 +81,31 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-%% @doc Start a deigma instance named `Category' under your own supervisor
-%%
-%% <ul>
-%% <li>`Category' must be an atom</li>
-%% </ul>
-%%
-%% @see child_spec/1
-%% @see start/1
+-ifdef(E48).
+-doc """
+Starts a deigma instance named `Category` under your own supervisor.
+
+- `Category` must be an atom.
+
+See also `child_spec/1` and `start/1`.
+""".
+-endif.
 -spec start_link(Category) -> {ok, pid()} | {error, term()}
         when Category :: atom().
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     supervisor:start_link({local,Server}, ?MODULE, [Category]).
 
-%% @doc Declare a deigma instance named `Category' under your own supervisor
-%%
-%% <ul>
-%% <li>`Category' must be an atom</li>
-%% </ul>
-%%
-%% @see start_link/2
-%% @see start/1
+-ifdef(E48).
+-doc """
+Returns a child spec for a deigma instance named `Category`, for launching it
+under your own supervisor.
+
+- `Category` must be an atom.
+
+See also `start_link/1` and `start/1`.
+""".
+-endif.
 -spec child_spec(Category) -> supervisor:child_spec()
         when Category :: atom().
 child_spec(Category) ->
@@ -95,29 +114,30 @@ child_spec(Category) ->
        type => supervisor
      }.
 
-%% @doc Start a deigma instance named `Category'
-%%
-%% <ul>
-%% <li>`Category' must be an atom</li>
-%% </ul>
-%%
-%% @see stop/1
-%% @see start_link/1
-%% @see child_spec/1
+-ifdef(E48).
+-doc """
+Starts a deigma instance named `Category` under the `deigma` application.
+
+- `Category` must be an atom.
+
+See also `stop/1`, `start_link/1` and `child_spec/1`.
+""".
+-endif.
 -spec start(Category) -> {ok, pid()} | {error, term()}
         when Category :: atom().
 start(Category) ->
     deigma_sup:start_child([Category]).
 
-%% @doc Stop a deigma instance named `Category'
-%%
-%% <ul>
-%% <li>`Category' must be an atom</li>
-%% </ul>
-%%
-%% @see stop/1
-%% @see start_link/1
-%% @see child_spec/1
+-ifdef(E48).
+-doc """
+Stops the deigma instance named `Category` running under the `deigma`
+application.
+
+- `Category` must be an atom.
+
+See also `start/1`.
+""".
+-endif.
 -spec stop(Category) -> ok | {error, not_started}
         when Category :: atom().
 stop(Category) ->
@@ -131,25 +151,25 @@ stop(Category) ->
             {error, not_started}
     end.
 
-%% @doc Ask `Category' to sample an `EventType' event
-%%
-%% <ul>
-%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
-%% <li>`EventType' can be any term</li>
-%% </ul>
-%%
-%% Returns:
-%% <ul>
-%% <li>`{sample, SamplingPercentage}' if the event was sampled</li>
-%% <li>`{drop, SamplingPercentage}' if the event was dropped</li>
-%% </ul>
-%%
-%% `SamplingPercentage' is a floating point number between 0.0 and 1.0 representing
-%% the percentage of events that were sampled during the last 1000 milliseconds,
-%% <b>including</b> the event reported just now.
-%%
-%% @see ask/3
-%% @see ask/4
+-ifdef(E48).
+-doc """
+Asks `Category` to sample an `EventType` event.
+
+- `Category` must be an atom and correspond to an existing deigma instance.
+- `EventType` can be any term.
+
+Returns:
+
+- `{sample, SamplingPercentage}` if the event was sampled;
+- `{drop, SamplingPercentage}` if the event was dropped.
+
+`SamplingPercentage` is a floating point number between 0.0 and 1.0 representing
+the percentage of events that were sampled during the last 1000 milliseconds,
+**including** the event reported just now.
+
+See also `ask/3` and `ask/4`.
+""".
+-endif.
 -spec ask(Category, EventType) -> {Decision, SamplingPercentage}
         when Category :: atom(),
              EventType :: term(),
@@ -158,38 +178,32 @@ stop(Category) ->
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
 
-%% @doc Ask `Category' to sample an `EventType' event using custom function or overridden options
-%%
-%% <ul>
-%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
-%% <li>`EventType' can be any term</li>
-%% <li>`EventFun' must be a function which will receive the following arguments:
-%%      <ul>
-%%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
-%%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
-%%          <li>`SamplingPercentage': a floating point number between 0.0 and 1.0 representing the percentage
-%%              of events that were sampled during the last 1000 milliseconds, <b>including</b> the event
-%%              reported just now.
-%%          </li>
-%%      </ul>
-%%      It will be called from within the event window for `EventType', which means
-%%      it can be used for fullfilling serialisation constraints; at the same time,
-%%      performance has to be taken into account (lest the event window become a bottleneck.)
-%% </li>
-%% <li>`Opts' must be a list of `ask_opt()' items:
-%%      <ul>
-%%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
-%%              second (defaults to `100')
-%%          </li>
-%%      </ul>
-%% </li>
-%% </ul>
-%%
-%% If called with `EventFun', it will return or throw whathever `EventFun' returns or throws.
-%% If called with `Opts', it will return the same as `:ask/2'.
-%%
-%% @see ask/2
-%% @see ask/4
+-ifdef(E48).
+-doc """
+Asks `Category` to sample an `EventType` event using a custom function or
+overridden options.
+
+- `Category` must be an atom and correspond to an existing deigma instance.
+- `EventType` can be any term.
+- `EventFun` is a function called with `(Timestamp, Decision, SamplingPercentage)`:
+    - `Timestamp` is the monotonic timestamp, in native units, at which the event
+      was registered;
+    - `Decision` is either `sample` or `drop`;
+    - `SamplingPercentage` is a float between 0.0 and 1.0 (see `ask/2`).
+
+  It runs from within the event window for `EventType`, so it can be used to
+  fulfil serialisation constraints — at the expense of possibly turning the
+  event window into a bottleneck.
+- `Opts` is a list of `t:ask_opt/0` values:
+    - `{max_rate, MaxRate}`: don't sample more than `MaxRate` `EventType` events
+      per second (defaults to `100`).
+
+When called with `EventFun`, returns (or throws) whatever `EventFun` returns (or
+throws). When called with `Opts`, returns the same as `ask/2`.
+
+See also `ask/2` and `ask/4`.
+""".
+-endif.
 -spec ask(Category, EventType, EventFun | Opts) -> {Decision, SamplingPercentage} | EventFunResult
         when Category :: atom(),
              EventType :: term(),
@@ -204,37 +218,17 @@ ask(Category, EventType, EventFun) when is_function(EventFun) ->
 ask(Category, EventType, Opts) ->
     ask(Category, EventType, fun default_ask_fun/3, Opts).
 
-%% @doc Ask `Category' to sample an `EventType' event using custom function and overridden options
-%%
-%% <ul>
-%% <li>`Category' must be an atom and correspond to an existing deigma instance</li>
-%% <li>`EventType' can be any term</li>
-%% <li>`EventFun' must be a function which will receive the following arguments:
-%%      <ul>
-%%          <li>`Timestamp': Monotonic timestamp in native units at which the event was registered</li>
-%%          <li>`Decision': Either `sample' or `drop' depending on whether the event was sampled or not</li>
-%%          <li>`SamplingPercentage': a floating point number between 0.0 and 1.0 representing the percentage
-%%              of events that were sampled during the last 1000 milliseconds, <b>including</b> the event
-%%              reported just now.
-%%          </li>
-%%      </ul>
-%%      It will be called from within the event window for `EventType', which means
-%%      it can be used for fullfilling serialisation constraints; at the same time,
-%%      performance has to be taken into account (lest the event window become a bottleneck.)
-%% </li>
-%% <li>`Opts' must be a list of `ask_opt()' items:
-%%      <ul>
-%%          <li>{`max_rate, MaxRate}': don't sample more than `MaxRate' `EventType' events per
-%%              second (defaults to `100')
-%%          </li>
-%%      </ul>
-%% </li>
-%% </ul>
-%%
-%% It will return or throw whathever `EventFun' returns or throws.
-%%
-%% @see ask/2
-%% @see ask/3
+-ifdef(E48).
+-doc """
+Asks `Category` to sample an `EventType` event using a custom function and
+overridden options.
+
+The arguments are as described in `ask/3`. Returns (or throws) whatever
+`EventFun` returns (or throws).
+
+See also `ask/2` and `ask/3`.
+""".
+-endif.
 -spec ask(Category, EventType, EventFun, Opts) -> EventFunResult
         when Category :: atom(),
              EventType :: term(),
@@ -251,9 +245,11 @@ ask(Category, EventType, EventFun, Opts) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
+-ifdef(E48).
+-doc false.
+-endif.
 -spec init([atom(), ...])
         -> {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
-%% @private
 init([Category]) ->
     SupFlags =
         #{ strategy => rest_for_one,

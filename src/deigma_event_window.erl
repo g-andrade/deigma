@@ -18,8 +18,11 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
-%% @private
 -module(deigma_event_window).
+
+-ifdef(E48).
+-moduledoc false.
+-endif.
 
 % based on https://gist.github.com/marcelog/97708058cd17f86326c82970a7f81d40#file-simpleproc-erl
 
