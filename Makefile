@@ -1,68 +1,121 @@
-REBAR3_URL=https://s3.amazonaws.com/rebar3/rebar3
+SHELL := bash
+.ONESHELL:
+.SHELLFLAGS := -euc
+.DELETE_ON_ERROR:
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
 
-ifeq ($(wildcard rebar3),rebar3)
-	REBAR3 = $(CURDIR)/rebar3
-endif
+## General Rules
 
-ifdef RUNNING_ON_CI
-REBAR3 = ./rebar3
-else
-REBAR3 ?= $(shell test -e `which rebar3` 2>/dev/null && which rebar3 || echo "./rebar3")
-endif
+all: compile
+.PHONY: all
+.NOTPARALLEL: all
 
-ifeq ($(REBAR3),)
-	REBAR3 = $(CURDIR)/rebar3
-endif
+compile:
+	@rebar3 compile
+.PHONY: compile
 
-.PHONY: all build clean check dialyzer xref test ci_test cover console microbenchmark doc publish
+clean:
+	@rebar3 clean -a
+.PHONY: clean
 
-.NOTPARALLEL: check test
+check: check-fast check-slow
+.NOTPARALLEL: check
+.PHONY: check
 
-all: build
+check-fast: check-formatted xref hank-dead-code-cleaner elvis-linter
+.NOTPARALLEL: check-fast
+.PHONY: check-fast
 
-build: $(REBAR3)
-	@$(REBAR3) compile
+check-slow: dialyzer
+.NOTPARALLEL: check-slow
+.PHONY: check-slow
 
-$(REBAR3):
-	wget $(REBAR3_URL) || curl -Lo rebar3 $(REBAR3_URL)
-	@chmod a+x rebar3
+test: eunit ct
+.NOTPARALLEL: test
+.PHONY: test
 
-clean: $(REBAR3)
-	@$(REBAR3) clean
+format:
+	@rebar3 fmt
+.NOTPARALLEL: format
+.PHONY: format
 
-check: dialyzer xref
+## Tests
 
-dialyzer: $(REBAR3)
-	@$(REBAR3) dialyzer
+ct:
+	@rebar3 do ct, cover
+.PHONY: ct
 
-xref: $(REBAR3)
-	@$(REBAR3) xref
+eunit:
+	@rebar3 eunit
+.PHONY: eunit
 
-test: $(REBAR3)
-	@$(REBAR3) as test ct
+## Checks
 
-ci_test: $(REBAR3)
-	@$(REBAR3) as ci_test ct
+check-formatted:
+	@if rebar3 plugins list | grep '^erlfmt\>' >/dev/null; then \
+		rebar3 fmt --check; \
+	else \
+		echo >&2 "WARN: skipping rebar3 erlfmt check"; \
+	fi
+.NOTPARALLEL: check-formatted
+.PHONY: check-formatted
 
-cover: test
-	@$(REBAR3) as test cover
+xref:
+	@rebar3 xref
+.NOTPARALLEL: xref
+.PHONY: xref
 
-console: $(REBAR3)
-	@$(REBAR3) as development shell --apps deigma
+hank-dead-code-cleaner:
+	@if rebar3 plugins list | grep '^rebar3_hank\>' >/dev/null; then \
+		rebar3 hank; \
+	else \
+		echo >&2 "WARN: skipping rebar3_hank check"; \
+	fi
+.NOTPARALLEL: hank-dead-code-cleaner
+.PHONY: hank-dead-code-cleaner
 
-microbenchmark: $(REBAR3)
-	@$(REBAR3) as development shell --script microbenchmark.escript
+elvis-linter:
+	@if rebar3 plugins list | grep '^rebar3_lint\>' >/dev/null; then \
+		rebar3 lint; \
+	else \
+		echo >&2 "WARN: skipping rebar3_lint check"; \
+	fi
+.NOTPARALLEL: elvis-linter
+.PHONY: elvis-linter
 
-doc: $(REBAR3)
-	@$(REBAR3) edoc
+dialyzer:
+	@rebar3 dialyzer
+.PHONY: dialyzer
 
-README.md: doc
-	# non-portable dirty hack follows (pandoc 2.1.1 used)
-	# gfm: "github-flavoured markdown"
-	pandoc --from html --to gfm doc/overview-summary.html -o README.md
-	@tail -n +11 <"README.md"   >"README.md_"
-	@head -n -13 <"README.md_"  >"README.md"
-	@rm "README.md_"
+## Shell, docs and publication
 
-publish: $(REBAR3)
-	@$(REBAR3) hex publish
+publish: doc
+publish:
+	@rebar3 hex publish --doc-dir=doc
+.NOTPARALLEL: publish
+
+shell: export ERL_FLAGS = +pc unicode
+shell:
+	@rebar3 as shell shell
+
+doc: SOURCE_REF := $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD)
+doc: tmp/ex_doc
+doc:
+	rebar3 edoc; \
+		./tmp/ex_doc "deigma" "${SOURCE_REF}" \
+		_build/docs/lib/deigma/ebin \
+		-c ex_doc.config \
+		--source-ref "${SOURCE_REF}";
+.PHONY: doc
+
+tmp/ex_doc: EX_DOC_VER=0.40.2
+tmp/ex_doc: OTP_VER := $(shell erl -noshell -eval 'io:fwrite("~s", [erlang:system_info(otp_release)]), init:stop().')
+tmp/ex_doc: | tmp
+tmp/ex_doc:
+	curl -fL -o tmp/ex_doc \
+		"https://github.com/elixir-lang/ex_doc/releases/download/v${EX_DOC_VER}/ex_doc_otp_${OTP_VER}"; \
+		chmod a+x tmp/ex_doc
+
+tmp:
+	mkdir tmp
