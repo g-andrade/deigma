@@ -77,6 +77,7 @@ overview, configuration and examples.
 -ifdef(E48).
 -doc "An option accepted by `ask/3` and `ask/4`.".
 -endif.
+
 -type ask_opt() ::
     {max_rate, non_neg_integer() | infinity}.
 -export_type([ask_opt/0]).
@@ -94,11 +95,15 @@ Starts a deigma instance named `Category` under your own supervisor.
 See also `child_spec/1` and `start/1`.
 """.
 -endif.
+
 -spec start_link(Category) -> {ok, pid()} | {error, term()} when
     Category :: atom().
+
 start_link(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     supervisor:start_link({local, Server}, ?MODULE, [Category]).
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -110,8 +115,10 @@ under your own supervisor.
 See also `start_link/1` and `start/1`.
 """.
 -endif.
+
 -spec child_spec(Category) -> supervisor:child_spec() when
     Category :: atom().
+
 child_spec(Category) ->
     deigma_util:dialyzer_opaque_term(
         #{
@@ -120,6 +127,8 @@ child_spec(Category) ->
             type => supervisor
         }
     ).
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -130,10 +139,14 @@ Starts a deigma instance named `Category` under the `deigma` application.
 See also `stop/1`, `start_link/1` and `child_spec/1`.
 """.
 -endif.
+
 -spec start(Category) -> {ok, pid()} | {error, term()} when
     Category :: atom().
+
 start(Category) ->
     deigma_sup:start_child([Category]).
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -145,8 +158,10 @@ application.
 See also `start/1`.
 """.
 -endif.
+
 -spec stop(Category) -> ok | {error, not_started} when
     Category :: atom().
+
 stop(Category) ->
     Server = deigma_util:proc_name(?MODULE, Category),
     try gen_server:stop(Server, shutdown, infinity) of
@@ -159,6 +174,8 @@ stop(Category) ->
         ->
             {error, not_started}
     end.
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -179,13 +196,17 @@ the percentage of events that were sampled during the last 1000 milliseconds,
 See also `ask/3` and `ask/4`.
 """.
 -endif.
+
 -spec ask(Category, EventType) -> {Decision, SamplingPercentage} when
     Category :: atom(),
     EventType :: term(),
     Decision :: sample | drop,
     SamplingPercentage :: float().
+
 ask(Category, EventType) ->
     ask(Category, EventType, fun default_ask_fun/3).
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -213,6 +234,7 @@ throws). When called with `Opts`, returns the same as `ask/2`.
 See also `ask/2` and `ask/4`.
 """.
 -endif.
+
 -spec ask(Category, EventType, EventFun | Opts) ->
     {Decision, SamplingPercentage} | EventFunResult
 when
@@ -224,10 +246,13 @@ when
     Decision :: sample | drop,
     EventFunResult :: term(),
     Opts :: [ask_opt()].
+
 ask(Category, EventType, EventFun) when is_function(EventFun) ->
     ask(Category, EventType, EventFun, []);
 ask(Category, EventType, Opts) ->
     ask(Category, EventType, fun default_ask_fun/3, Opts).
+
+%%%
 
 -ifdef(E48).
 -doc """
@@ -240,6 +265,7 @@ The arguments are as described in `ask/3`. Returns (or throws) whatever
 See also `ask/2` and `ask/3`.
 """.
 -endif.
+
 -spec ask(Category, EventType, EventFun, Opts) -> EventFunResult when
     Category :: atom(),
     EventType :: term(),
@@ -249,6 +275,7 @@ See also `ask/2` and `ask/3`.
     Decision :: sample | drop,
     EventFunResult :: term(),
     Opts :: [ask_opt()].
+
 ask(Category, EventType, EventFun, Opts) ->
     deigma_event_window:ask(Category, EventType, EventFun, Opts).
 
@@ -259,8 +286,10 @@ ask(Category, EventType, EventFun, Opts) ->
 -ifdef(E48).
 -doc false.
 -endif.
+
 -spec init([atom(), ...]) ->
     {ok, {supervisor:sup_flags(), [supervisor:child_spec(), ...]}}.
+
 init([Category]) ->
     SupFlags =
         #{
